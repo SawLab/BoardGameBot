@@ -1,0 +1,12 @@
+{
+  "name": "Board-Game-Bot",
+  "version": "1.0.0",
+  "description": "Tracks player's board game wins.",
+  "main": "bot.js",
+  "author": "Aharance",
+  "dependencies": {
+    "discord.io": "https://github.com/woor/discord.io/tarball/gateway_v6",
+    "sqlite3": "^4.0.8",
+    "winston": "^3.2.1"
+  }
+}
