@@ -5,7 +5,7 @@ var sqlite3 = require('sqlite3').verbose();
 var db = new sqlite3.Database('./BoardGameBot.db', (err) => {
 	if (err)
 	{
-		console.error(err.message);
+		return console.error(err.message);
 	}
 	console.log('Connected to BoardGameBot database');
 });
@@ -51,6 +51,9 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 				break;
 			case 'myscore':
 				ViewMyScore(userID, channelID);
+				break;
+				case 'namechange':
+				ChangeUserName(userID, channelID);
 				break;
 			case 'deleteall':
 				DeleteData(channelID);
@@ -155,6 +158,7 @@ function Help(channelID)
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t!leaderboard - prints the top 5 users'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t!win - adds a win to your account'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t!myscore - view your total wins'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t!namechange - enter this command if you\'ve changed your Discord username after adding yourself to my system'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t!help - prints the help screen';
 	SendMessageToServer(message, channelID);
 }
@@ -198,5 +202,46 @@ function ViewMyScore(userID, channelID)
 		}
 		let message = `Total wins for ${row.user} is: ${row.wins}`;
 		SendMessageToServer(message, channelID);
+	});
+}
+
+//Allows the user to change their name in the database if their Discord username is changed.
+function ChangeUserName(userID, channelID)
+{
+	db.serialize(function() {
+		var user = GetUserByID(userID);
+		var newName = user.username;
+		var newDiscriminator = user.discriminator;
+		
+		let sql = "SELECT userName name, userDiscriminator discriminator FROM Users WHERE userID = ?";
+		
+		db.get(sql, [userID], function(err, row) {
+			if(err) {
+				return console.error(err.message);
+			}
+
+			if(row == null) {	//if row does not exist, prompt user to add themeselves into te database
+				let message = "I don't recognize you! Type !addme to be added to my database.";
+				SendMessageToServer(message, channelID);
+				return;
+			}
+			var prevName = row.name;
+			var prevDiscriminator = row.discriminator;
+			
+			if(prevName === newName && prevDiscriminator === newDiscriminator) {		//if name has not changed: return. No need to update.
+				let message = "You are up to date in my system. No change needed!";
+				SendMessageToServer(message, channelID);
+				return;
+			}
+			
+			sql = "UPDATE Users SET userName = ?, userDiscriminator = ? WHERE userID = ?";
+			db.run(sql, [newName, newDiscriminator, userID], function(err) {
+				if(err) {
+					return console.error(err.message);
+				}
+				let message = `Name successfully changed from ${prevName}#${prevDiscriminator} to ${newName}#${newDiscriminator}`;
+				SendMessageToServer(message, channelID);
+			});
+		});
 	});
 }
