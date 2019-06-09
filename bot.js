@@ -31,32 +31,37 @@ bot.on('message', function (user, userID, channelID, message, evt) {
     if (message.substring(0, 1) == '!') {
         var args = message.substring(1).split(' ');
         var cmd = args[0];
-		var id = userID;
-		var userName = user;
        
         args = args.splice(1);
         switch(cmd) {
             case 'ping':
                 Ping(channelID);
-				break;			
+				break;
+			case 'help':
+				Help(channelID);
+				break;
 			case 'leaderboard': 	
 				TotalWinsLeaderboard(channelID);
 				break;				
 			case 'addme':
-				AddPlayer(user, userID);
+				AddPlayer(user, userID, channelID);
 				break;			
 			case 'win':
 				AddPlayerWin(user, userID, channelID);
 				break;
+			case 'deleteall':
+				DeleteData(channelID);
+				break;
 			default:
-				
+				IncorrectCommand(channelID);
+				break;
          }
      }
 });
 
 function TotalWinsLeaderboard(channelID) {
 	db.serialize(function() {
-		db.all("SELECT userName user, numWins wins FROM Users ORDER BY numWins DESC",
+		db.all("SELECT userName user, totalWins wins FROM Users ORDER BY totalWins DESC",
 			(error, rows) => {
 				if (error) {
 					console.error(error.message);
@@ -67,15 +72,12 @@ function TotalWinsLeaderboard(channelID) {
 				
 				rows.forEach(row => {
 					if (i < numToPrint) {
-						messageToSend = messageToSend + i + ": " + row.user + ": " + row.wins + "\n";
+					messageToSend = `${messageToSend}${i}: ${row.user} - ${row.wins}\n`;
 						i++;
 					}
 				});
 				
-				bot.sendMessage({
-					to: channelID,
-					message: messageToSend
-				});		
+				SendMessageToServer(messageToSend, channelID);	
 		});
 	});
 }
@@ -90,9 +92,7 @@ function AddPlayerWin(user, userID, channelID)
 			}
 			
 			let totalWins = row.wins;
-			console.log('Total wins set to ' + totalWins);
 			totalWins = totalWins + 1; //add 1 to the player's total win count
-			console.log('Total wins incremented to ' + totalWins);
 			
 			sql = 'UPDATE Users SET numWins = ? WHERE userID = ?';
 		
@@ -100,33 +100,77 @@ function AddPlayerWin(user, userID, channelID)
 				if (err) {
 					return console.error(err.message);
 				}
-				bot.sendMessage({
-					to: channelID,
-					message: `Congratulations ${user}! Your total wins are now ${totalWins}.`
-				});
+				let message = `Congratulations ${user}! Your total wins are now ${totalWins}.`;
+				SendMessageToServer(message, channelID);
 			});
-		});		
-		
-		
+		});				
 	});
 }
 
-function AddPlayer(user, userID)
+function AddPlayer(user, userID, channelID)
 {
 	db.serialize(function() {
-		db.run('INSERT INTO Users(userName, userID) VALUES(?, ?)', [user, userID], function(err) {
+		var userDiscriminator = GetUserByID(userID).discriminator;
+		db.run('INSERT INTO Users(userID, userName, userDiscriminator) VALUES(?, ?, ?)', [userID, user, userDiscriminator], function(err) {
 			if(err)
 			{
+				if(err.message.includes("SQLITE_CONSTRAINT"))
+				{
+					let message = "You already exist in my system!";
+					SendMessageToServer(message, channelID);
+				}
 				return console.error(err.message);
 			}
+			let message = `Welcome ${user}! You are now ready to start tracking your wins!`;
+			SendMessageToServer(message, channelID);
 		});
 	});
 }
 
 function Ping(channelID)
 {
+	let message = 'Pong';
+	SendMessageToServer(message, channelID);
+}
+
+function IncorrectCommand(channelID)
+{
+	let message = 'Command not recognized. Type !help for a list of approved commands.';
+	SendMessageToServer(message, channelID);
+}
+
+function Help(channelID)
+{
+	let message = 'Approved Commands:'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t!addme - adds you to the database so you can start tracking your wins!'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t!leaderboard - prints the top 5 users'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t!win - adds a win to your account'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t!help - prints the help screen';
+	SendMessageToServer(message, channelID);
+}
+
+function DeleteData(channelID)
+{
+	let sql = "DELETE FROM Users";
+	let message = "All data deleted";
+	db.run(sql, [], function(err) {
+		if (err) {
+			return console.error(err.message);
+		}
+		SendMessageToServer(message, channelID);
+	});
+}
+
+function GetUserByID(userID)
+{
+	var user = bot.users[userID];
+	return user;
+}
+
+function SendMessageToServer(messageToSend, channelID)
+{
 	bot.sendMessage({
 		to: channelID,
-		message: 'Pong!'
+		message: messageToSend
 	});
 }
