@@ -2,12 +2,12 @@ var Discord = require('discord.io');
 var logger = require('winston');
 var auth = require('./auth.json');
 var sqlite3 = require('sqlite3').verbose();
-var db = new sqlite3.Database('./Players.db', (err) => {
+var db = new sqlite3.Database('./BoardGameBot.db', (err) => {
 	if (err)
 	{
 		console.error(err.message);
 	}
-	console.log('Connected to Players database');
+	console.log('Connected to BoardGameBot database');
 });
 // Configure logger settings
 logger.remove(logger.transports.Console);
@@ -31,6 +31,8 @@ bot.on('message', function (user, userID, channelID, message, evt) {
     if (message.substring(0, 1) == '!') {
         var args = message.substring(1).split(' ');
         var cmd = args[0];
+		var id = userID;
+		var userName = user;
        
         args = args.splice(1);
         switch(cmd) {
@@ -44,27 +46,27 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 			
 			case 'score': 	
 				db.serialize(function() {
-					db.all("SELECT * FROM Players ORDER BY numWins",
+					db.all("SELECT * FROM Users ORDER BY numWins",
 						(error, rows) => {
 							console.log(rows);
 						// receives all the results as an array
 						rows.forEach( row => 
 						bot.sendMessage({
 							to: channelID,
-						    message: `${row.playerName}: ${row.numWins}`
+						    message: `${row.userName}: ${row.numWins}`
 						}));
 					});
 				});
 				break;
 				
-			case 'addplayer':
+			case 'addme':
 			db.serialize(function() {
-				db.run('INSERT INTO PLAYERS playerName VALUES',[user],function(err) {
+				db.run('INSERT INTO Users(userName, userID) VALUES(?, ?)', [user, userID], function(err) {
 					if(err)
 					{
 						console.error(err.message);
 					}
-					console.log('A row has been inserted with playerName ${user}');
+					console.log('A row has been inserted with playerName ' + userName + 'and userID ' + id);
 				});
 			});
             // Just add any case commands if you want to..
