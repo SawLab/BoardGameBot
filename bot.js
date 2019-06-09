@@ -49,6 +49,9 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 			case 'win':
 				AddPlayerWin(user, userID, channelID);
 				break;
+			case 'myscore':
+				ViewMyScore(userID, channelID);
+				break;
 			case 'deleteall':
 				DeleteData(channelID);
 				break;
@@ -59,6 +62,7 @@ bot.on('message', function (user, userID, channelID, message, evt) {
      }
 });
 
+//Prints the top 5 users. Prints less than 5 if there are less than 5 users.
 function TotalWinsLeaderboard(channelID) {
 	db.serialize(function() {
 		db.all("SELECT userName user, totalWins wins FROM Users ORDER BY totalWins DESC",
@@ -82,10 +86,11 @@ function TotalWinsLeaderboard(channelID) {
 	});
 }
 
+//Increment the designated user's win counter
 function AddPlayerWin(user, userID, channelID)
 {
 	db.serialize(function() {
-		let sql = 'SELECT numWins wins FROM Users WHERE userID = ?';
+		let sql = 'SELECT totalWins wins FROM Users WHERE userID = ?';
 		db.get(sql, [userID], (err, row) => {
 			if(err) {
 				return console.error(err.message);
@@ -94,7 +99,7 @@ function AddPlayerWin(user, userID, channelID)
 			let totalWins = row.wins;
 			totalWins = totalWins + 1; //add 1 to the player's total win count
 			
-			sql = 'UPDATE Users SET numWins = ? WHERE userID = ?';
+			sql = 'UPDATE Users SET totalWins = ? WHERE userID = ?';
 		
 			db.run(sql, [totalWins, userID], function(err) {
 				if (err) {
@@ -107,6 +112,7 @@ function AddPlayerWin(user, userID, channelID)
 	});
 }
 
+//Adds the user to the database. If user already exists, let the user know.
 function AddPlayer(user, userID, channelID)
 {
 	db.serialize(function() {
@@ -127,28 +133,33 @@ function AddPlayer(user, userID, channelID)
 	});
 }
 
+//Pings the bot
 function Ping(channelID)
 {
 	let message = 'Pong';
 	SendMessageToServer(message, channelID);
 }
 
+//Prints message if command is not recognized.
 function IncorrectCommand(channelID)
 {
 	let message = 'Command not recognized. Type !help for a list of approved commands.';
 	SendMessageToServer(message, channelID);
 }
 
+//Prints all the approved commands in the channel
 function Help(channelID)
 {
 	let message = 'Approved Commands:'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t!addme - adds you to the database so you can start tracking your wins!'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t!leaderboard - prints the top 5 users'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t!win - adds a win to your account'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t!myscore - view your total wins'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t!help - prints the help screen';
 	SendMessageToServer(message, channelID);
 }
 
+//ONLY FOR TESTING PURPOSES DELETE ONCE COMPLETE
 function DeleteData(channelID)
 {
 	let sql = "DELETE FROM Users";
@@ -161,16 +172,31 @@ function DeleteData(channelID)
 	});
 }
 
+//Retrieves the full user object
 function GetUserByID(userID)
 {
 	var user = bot.users[userID];
 	return user;
 }
 
+//Sends a message to the desgignated channel
 function SendMessageToServer(messageToSend, channelID)
 {
 	bot.sendMessage({
 		to: channelID,
 		message: messageToSend
+	});
+}
+
+//Allows the user to view personal score.
+function ViewMyScore(userID, channelID)
+{
+	let sql = "SELECT userName user, totalWins wins FROM Users WHERE userID = ?";
+	db.get(sql, [userID], function(err, row) {
+		if(err)	{
+			return console.error(err.message);
+		}
+		let message = `Total wins for ${row.user} is: ${row.wins}`;
+		SendMessageToServer(message, channelID);
 	});
 }
