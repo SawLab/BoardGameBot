@@ -31,6 +31,8 @@ bot.on('message', function (user, userID, channelID, message, evt) {
     if (message.substring(0, 1) == '!') {
         var args = message.substring(1).split(' ');
         var cmd = args[0];
+		var cmd2 = args[1];
+		var cmd3 = args[2];
        
         args = args.splice(1);
         switch(cmd) {
@@ -52,11 +54,17 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 			case 'myscore':
 				ViewMyScore(userID, channelID);
 				break;
-				case 'namechange':
+			case 'namechange':
 				ChangeUserName(userID, channelID);
 				break;
-			case 'deleteall':
-				DeleteData(channelID);
+			case 'source':
+				ViewSourceCode(channelID);
+				break;
+			case 'deleteusers':
+				DeleteUsers(channelID);
+				break;
+			case 'addgame':
+				AddGame(userID, channelID, cmd2, cmd3);
 				break;
 			default:
 				IncorrectCommand(channelID);
@@ -159,15 +167,16 @@ function Help(channelID)
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t!win - adds a win to your account'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t!myscore - view your total wins'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t!namechange - enter this command if you\'ve changed your Discord username after adding yourself to my system'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t!source - view my source code'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t!help - prints the help screen';
 	SendMessageToServer(message, channelID);
 }
 
 //ONLY FOR TESTING PURPOSES DELETE ONCE COMPLETE
-function DeleteData(channelID)
+function DeleteUsers(channelID)
 {
 	let sql = "DELETE FROM Users";
-	let message = "All data deleted";
+	let message = "User data deleted";
 	db.run(sql, [], function(err) {
 		if (err) {
 			return console.error(err.message);
@@ -244,4 +253,44 @@ function ChangeUserName(userID, channelID)
 			});
 		});
 	});
+}
+
+//Print the link to the source code for this bot
+function ViewSourceCode(channelID)
+{
+	let message = 'Enter my secret chambers...'
+				+ '\nhttps://github.com/SawLab/BoardGameBot/blob/master/bot.js';
+	SendMessageToServer(message, channelID);
+}
+
+//Admin only. Add Game to the Games table, add the new game to the User table as a column.
+function AddGame(userID, channelID, gameName, nickName)
+{
+	var name = gameName.replace(/&/g, ' ');
+	
+	if (auth.adminID != userID)	//if user is not authorised admin, return
+	{
+		let message = "You can't tell me to what to do!";
+		SendMessageToServer(message, channelID);
+		return;		
+	}	
+	
+	db.serialize(function() {
+		let sql = 'INSERT INTO Games(name, nickName) VALUES(?, ?)';
+		db.run(sql, [name, nickName], function(err) {
+			if (err) {
+				return console.error(err.message);
+			}
+			
+			sql = `ALTER TABLE Users ADD COLUMN ${nickName} int DEFAULT 0`;
+			db.run(sql, [], function(err) {
+				if (err) {
+					return console.error(err.message);
+				}
+			});
+		});
+	});
+	
+	let message = `${name} with short-hand name ${nickName} has been added.`;
+	SendMessageToServer(message, channelID);
 }
