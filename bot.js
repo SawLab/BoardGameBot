@@ -47,7 +47,7 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 				Leaderboard(channelID, cmd2);
 				break;				
 			case 'addme':
-				AddPlayer(user, userID, channelID);
+				AddMe(user, userID, channelID);
 				break;			
 			case 'win':
 				AddWin(user, userID, channelID, cmd2);
@@ -81,6 +81,9 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 				break;
 			case 'addloss':
 				AddUserLoss(userID, channelID, cmd2, cmd3);
+				break;
+			case 'deleteuser':
+				DeleteUser(userID, channelID, cmd2);
 				break;
 			default:
 				IncorrectCommand(channelID);
@@ -303,7 +306,7 @@ function AddLoss(user, userID, channelID, gameNickName)
 }
 
 //Adds the user to the database. If user already exists, let the user know.
-function AddPlayer(user, userID, channelID)
+function AddMe(user, userID, channelID)
 {
 	db.serialize(function() {
 		var userDiscriminator = GetUserByID(userID).discriminator;
@@ -511,7 +514,8 @@ function ViewAdminCommands(channelID)
 	let message = 'Admin Commands:'
 				+ '\n\t\t\t\t\t\t\t\t\t!addgame {Board&Game&Name} {nickname} - adds a game to the game list and begins tracking wins for all users'
 				+ '\n\t\t\t\t\t\t\t\t\t!addwin {username#0000} {nickname} - remove a win from the selected user'
-				+ '\n\t\t\t\t\t\t\t\t\t!addloss {username#0000} {nickname} - add a win from the selected user';
+				+ '\n\t\t\t\t\t\t\t\t\t!addloss {username#0000} {nickname} - add a win from the selected user'
+				+ '\n\t\t\t\t\t\t\t\t\t!deleteuser {username#0000} - delete the specified user from the database';
 	SendMessageToServer(message, channelID);
 }
 
@@ -676,10 +680,51 @@ function AddUserWin(userID, channelID, userToEdit, game)
 	});	
 }
 
+//Admin only. Delete another user from the system
 function DeleteUser(userID, channelID, userToDelete)
 {
-	if (userID != auth.adminID) {
+	var userToDeleteSplit;
+	var userToDeleteName;
+	var userToDeleteDiscriminator;
+	
+	if (userID != auth.adminID) { //check if user is admin
 		let message = 'You can\'t tell me what to do!';
 		return SendMessageToServer(message, channelID);
 	}
+	
+	if (userToDelete == null) {
+		let message = 'Missing user to delete. Format: !deleteuser {username#0000}';
+		return SendMessageToServer(message, channelID);
+	}
+	
+	userToDeleteSplit = userToDelete.split('#');
+	userToDeleteName = userToDeleteSplit[0];
+	userToDeleteDiscriminator = userToDeleteSplit[1];
+	
+	if (userToDeleteSplit.length != 2 || userToDeleteDiscriminator.length != 4) { //check input formatting
+		let message = 'Invalid user format. Format: !deleteuser {username#0000}';
+		return SendMessageToServer(message, channelID);
+	}
+	
+	if (userToDeleteName.length < 2 || userToDeleteName.length > 32) { //check if the inputted name is allowed on Discord
+		let message = 'Invalid user. User must be between 2 and 32 characters. Format: !deleteuser {username#0000}';
+		return SendMessageToServer(message, channelID);
+	}
+	
+	let sql = `SELECT userID From Users WHERE userName = ? AND userDiscriminator = ?`;
+	db.get(sql, [userToDeleteName, userToDeleteDiscriminator], function(err, row) {	//check if the user to delete is in the database
+		if (row == null) {
+			let message = `${userToDelete} does not exist in my system!`;
+			return SendMessageToServer(message, channelID);
+		}
+		sql = `DELETE FROM Users WHERE userName = ? AND userDiscriminator = ?`;		//then delete the selected user
+		db.run(sql, [userToDeleteName, userToDeleteDiscriminator], function(err) {
+			if (err) {
+				return console.error(err.message);
+			}
+			let message = `User ${userToDelete} has been deleted.`;
+			SendMessageToServer(message, channelID);
+		});
+	});
+	
 }
