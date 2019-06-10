@@ -26,11 +26,12 @@ bot.on('ready', function (evt) {
     logger.info(bot.username + ' - (' + bot.id + ')');
 });
 bot.on('message', function (user, userID, channelID, message, evt) {
-    // Our bot needs to know if it will execute a command
+	
+	// Our bot needs to know if it will execute a command
     // It will listen for messages that will start with `!`
     if (message.substring(0, 1) == '!') {
         var args = message.substring(1).split(' ');
-        var cmd1 = args[0];
+        var cmd1 = args[0].toLowerCase();
 		var cmd2 = args[1];
 		var cmd3 = args[2];
        
@@ -49,10 +50,10 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 				AddPlayer(user, userID, channelID);
 				break;			
 			case 'win':
-				AddPlayerWin(user, userID, channelID, cmd2);
+				AddWin(user, userID, channelID, cmd2);
 				break;
 			case 'loss':
-				AddPlayerLoss(user, userID, channelID, cmd2);
+				AddLoss(user, userID, channelID, cmd2);
 				break;			
 			case 'myscore':
 				ViewMyScore(userID, channelID, cmd2);
@@ -74,6 +75,12 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 				break;
 			case 'admin':
 				ViewAdminCommands(channelID);
+				break;
+			case 'addwin':
+				AddUserWin(userID, channelID, cmd2, cmd3);
+				break;
+			case 'addloss':
+				AddUserLoss(userID, channelID, cmd2, cmd3);
 				break;
 			default:
 				IncorrectCommand(channelID);
@@ -159,7 +166,7 @@ function TotalWinsLeaderboard(channelID) {
 }
 
 //Increments the user's total wins and the wins of the specified game by 1
-function AddPlayerWin(user, userID, channelID, gameNickName)
+function AddWin(user, userID, channelID, gameNickName)
 {
 	if (gameNickName == null) {
 		let message = "The nickname for the game must be specfied. Type !viewgames to see a list of games and their nicknames. Format: !win {nickname}";
@@ -221,7 +228,7 @@ function AddPlayerWin(user, userID, channelID, gameNickName)
 }
 
 //Reduces the user's total wins and the wins of the specified game by 1
-function AddPlayerLoss(user, userID, channelID, gameNickName)
+function AddLoss(user, userID, channelID, gameNickName)
 {
 	if (gameNickName == null) {
 		let message = "The nickname for the game must be specfied. Type !viewgames to see a list of games and their nicknames. Format: !win {nickname}";
@@ -267,10 +274,9 @@ function AddPlayerLoss(user, userID, channelID, gameNickName)
 					error = true;
 					return console.error(err.message);
 				}
-				console.log(gameWins);
 				gameWins = row.game;						
 				gameWins = gameWins - 1;   //reduce player's specified game win count by 1 
-				console.log(gameWins);
+
 				if (gameWins < 0) {
 					let message = 'Error: User can not have less than 0 game wins.';
 					return SendMessageToServer(message, channelID);
@@ -287,7 +293,7 @@ function AddPlayerLoss(user, userID, channelID, gameNickName)
 						if (err) {
 							return console.error(err.message);
 						}
-						let message = `Congratulations ${user}! You now have ${gameWins} wins in ${row.gameName} and your total wins are now ${totalWins}.`;
+						let message = `${user} now has ${gameWins} wins in ${row.gameName} and their total wins have been reduced to ${totalWins}.`;
 						SendMessageToServer(message, channelID);
 					});
 				});
@@ -503,7 +509,9 @@ function ViewGames(channelID)
 function ViewAdminCommands(channelID)
 {
 	let message = 'Admin Commands:'
-				+ '\n\t\t\t\t\t\t\t\t\t!addgame {Board&Game&Name} {nickname} - adds a game to the game list and begins tracking wins for all users ';
+				+ '\n\t\t\t\t\t\t\t\t\t!addgame {Board&Game&Name} {nickname} - adds a game to the game list and begins tracking wins for all users'
+				+ '\n\t\t\t\t\t\t\t\t\t!addwin {username#0000} {nickname} - remove a win from the selected user'
+				+ '\n\t\t\t\t\t\t\t\t\t!addloss {username#0000} {nickname} - add a win from the selected user';
 	SendMessageToServer(message, channelID);
 }
 
@@ -562,4 +570,116 @@ function AddGame(userID, channelID, gameName, nickName)
 			});
 		});
 	});
+}
+
+//Admin only. Adds a player win to the specified user and game.
+function AddUserLoss(userID, channelID, userToEdit, game)
+{
+	var userToEditSplit;
+	var userToEditName;
+	var userToEditDiscriminator;
+	var userToEditID;
+	
+	if (userID != auth.adminID) {	//check for admin permissions
+		let message = 'You can\'t tell me what to do!';
+		return SendMessageToServer(message, channelID);
+	}
+	
+	if (userToEdit == null) {
+		let message = 'Missing the user to edit. Format: !adduserloss {username#0000} {nickname}';
+		return SendMessageToServer(message, channelID);
+	}
+	
+	if (game == null) {
+		let message = 'Missing game. Format: !adduserloss {username#0000} {nickname}';
+		return SendMessageToServer(message, channelID);
+	}	
+
+	userToEditSplit = userToEdit.split('#');
+	userToEditName = userToEditSplit[0];
+	userToEditDiscriminator = userToEditSplit[1];
+	
+	if (userToEditSplit.length != 2 || userToEditDiscriminator.length != 4) { //check that user input is correct format
+		let message = 'Invalid user format. Format: !adduserloss {username#0000} {nickname}';
+		return SendMessageToServer(message, channelID);
+	}
+	
+	if (userToEditName.length < 2 || userToEditName.length > 32) {	//check to make sure its a name Discord allows
+		let message = 'Invalid user length. Username must be between 2 and 32 characters. Format: !adduserloss {username#0000} {nickname}';
+		return SendMessageToServer(message, channelID);
+	}
+	
+	let sql = `SELECT userID from Users WHERE userName = ? AND userDiscriminator = ?`; //find unique userID using username and discriminator
+	db.get(sql, [userToEditName, userToEditDiscriminator], function(err, row) {
+		if (err) {
+			return console.error(err.message);
+		}		
+		if (row == null) {
+			let message = `${userToEdit} is not in my system!`;
+			return SendMessageToServer(message, channelID);
+		}
+		userToEditID = row.userID;
+		game = game.toLowerCase();
+		AddLoss(userToEditName, userToEditID, channelID, game); //call the AddLoss function with the gathered data
+	});	
+}
+
+//Admin only. Adds a player win to the specified user and game.
+function AddUserWin(userID, channelID, userToEdit, game)
+{
+	var userToEditSplit;
+	var userToEditName;
+	var userToEditDiscriminator;
+	var userToEditID;
+	
+	if (userID != auth.adminID) {
+		let message = 'You can\'t tell me what to do!';
+		return SendMessageToServer(message, channelID);
+	}
+	
+	if (userToEdit == null) {
+		let message = 'Missing the user to edit. Format: !adduserwin {username#0000} {nickname}';
+		return SendMessageToServer(message, channelID);
+	}
+	
+	if (game == null) {
+		let message = 'Missing game. Format: !adduserwin {username#0000} {nickname}';
+		return SendMessageToServer(message, channelID);
+	}	
+
+	userToEditSplit = userToEdit.split('#');
+	userToEditName = userToEditSplit[0];
+	userToEditDiscriminator = userToEditSplit[1];
+	
+	if (userToEditSplit.length != 2 || userToEditDiscriminator.length != 4) {	//Check that user input is correct format
+		let message = 'Invalid user format. Format: !adduserwin {username#0000} {nickname}';
+		return SendMessageToServer(message, channelID);
+	}
+	
+	if (userToEditName.length < 2 || userToEditName.length > 32) {  //Check to make sure its a name Discord allows
+		let message = 'Invalid user length. Username must be between 2 and 32 characters. Format: !adduserwin {username#0000} {nickname}';
+		return SendMessageToServer(message, channelID);
+	}
+	
+	let sql = `SELECT userID from Users WHERE userName = ? AND userDiscriminator = ?`;
+	db.get(sql, [userToEditName, userToEditDiscriminator], function(err, row) {    //find unique userID using username and discriminator
+		if (err) {
+			return console.error(err.message);
+		}		
+		if (row == null) {
+			let message = `${userToEdit} is not in my system!`;
+			return SendMessageToServer(message, channelID);
+		}
+		userToEditID = row.userID;
+		game = game.toLowerCase();
+		AddWin(userToEditName, userToEditID, channelID, game); //Call the AddWin function with the gathered data
+	});	
+}
+
+function DeleteUser(userID, channelID, userToDelete)
+{
+	if (userID != auth.adminID) {
+		let message = 'You can\'t tell me what to do!';
+		return SendMessageToServer(message, channelID);
+	}
 }
