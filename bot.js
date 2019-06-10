@@ -69,6 +69,9 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 			case 'viewgames':
 				ViewGames(channelID);
 				break;
+			case 'admin':
+				ViewAdminCommands(channelID);
+				break;
 			default:
 				IncorrectCommand(channelID);
 				break;
@@ -172,6 +175,7 @@ function Help(channelID)
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t!viewgames - view list of all games and their nicknames'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t!namechange - enter this command if you\'ve changed your Discord username after adding yourself to my system'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t!source - view my source code'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t!admin - view admin commands'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t!help - prints the help screen';
 	SendMessageToServer(message, channelID);
 }
@@ -290,6 +294,13 @@ function ViewGames(channelID)
 	});
 }
 
+function ViewAdminCommands(channelID)
+{
+	let message = 'Admin Commands:'
+				+ '\n\t\t\t\t\t\t\t\t\t!addgame - adds a game to the game list. Format: !addgame {Board&Game&Name} {nickname}';
+	SendMessageToServer(message, channelID);
+}
+
 //Admin only. Add Game to the Games table, add the new game to the User table as a column.
 function AddGame(userID, channelID, gameName, nickName)
 {
@@ -327,12 +338,13 @@ function AddGame(userID, channelID, gameName, nickName)
 	}	
 	
 	db.serialize(function() {
-		let sql = 'INSERT INTO Games(gameName, nickName) VALUES(?, ?)';
+		let sql = 'INSERT INTO Games(gameName, nickName) VALUES(?, lower(?))';
 		db.run(sql, [name, nickName], function(err) {
 			if (err) {
 				return console.error(err.message);
 			}
-			
+
+			nickName = nickName.toLowerCase();
 			sql = `ALTER TABLE Users ADD COLUMN ${nickName} int DEFAULT 0`;
 			db.run(sql, [], function(err) {
 				if (err) {
@@ -343,6 +355,5 @@ function AddGame(userID, channelID, gameName, nickName)
 			});
 		});
 	});
-	
 	
 }
