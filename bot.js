@@ -30,12 +30,12 @@ bot.on('message', function (user, userID, channelID, message, evt) {
     // It will listen for messages that will start with `!`
     if (message.substring(0, 1) == '!') {
         var args = message.substring(1).split(' ');
-        var cmd = args[0];
+        var cmd1 = args[0];
 		var cmd2 = args[1];
 		var cmd3 = args[2];
        
         args = args.splice(1);
-        switch(cmd) {
+        switch(cmd1) {
             case 'ping':
                 Ping(channelID);
 				break;
@@ -49,7 +49,7 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 				AddPlayer(user, userID, channelID);
 				break;			
 			case 'win':
-				AddPlayerWin(user, userID, channelID);
+				AddPlayerWin(user, userID, channelID, cmd2);
 				break;
 			case 'myscore':
 				ViewMyScore(userID, channelID);
@@ -65,6 +65,9 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 				break;
 			case 'addgame':
 				AddGame(userID, channelID, cmd2, cmd3);
+				break;
+			case 'viewgames':
+				ViewGames(channelID);
 				break;
 			default:
 				IncorrectCommand(channelID);
@@ -98,7 +101,7 @@ function TotalWinsLeaderboard(channelID) {
 }
 
 //Increment the designated user's win counter
-function AddPlayerWin(user, userID, channelID)
+function AddPlayerWin(user, userID, channelID, gameNickName)
 {
 	db.serialize(function() {
 		let sql = 'SELECT totalWins wins FROM Users WHERE userID = ?';
@@ -166,6 +169,7 @@ function Help(channelID)
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t!leaderboard - prints the top 5 users'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t!win - adds a win to your account'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t!myscore - view your total wins'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t!viewgames - view list of all games and their nicknames'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t!namechange - enter this command if you\'ve changed your Discord username after adding yourself to my system'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t!source - view my source code'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t!help - prints the help screen';
@@ -263,9 +267,56 @@ function ViewSourceCode(channelID)
 	SendMessageToServer(message, channelID);
 }
 
+//Prints list of all games and their nicknames
+function ViewGames(channelID)
+{
+	let sql = 'SELECT gameName name, nickName nick FROM Games ORDER BY gameName ASC';
+	
+	db.all(sql, [], function(err, rows) {
+		if (err) {
+			return console.error(err.message);
+		}
+		
+		if (rows == null) {
+			let message = "No games to view. Admin must add a board game using the !addgame command."
+			SendMessageToServer(message, channelID);
+		}
+		
+		let message = "";
+		rows.forEach(row => {
+			message = `${message}${row.name}: ${row.nick}\n`;	
+		});		
+		SendMessageToServer(message, channelID);
+	});
+}
+
 //Admin only. Add Game to the Games table, add the new game to the User table as a column.
 function AddGame(userID, channelID, gameName, nickName)
 {
+	if (gameName == null) {
+		let message = "Game name not specified. Command must be !addgame {gameName} {nickname}. Use \'&\' instead of spaces for the game name.";
+		SendMessageToServer(message, channelID);
+		return;
+	}
+	
+	if (gameName.length > 32) {
+		let message = "The game name cannot be larger than 32 characters. Please shorten the game name.";
+		SendMessageToServer(message, channelID);
+		return;
+	}
+	
+	if (nickName == null) {
+		let message = "Nickname not specified.  Command must be !addgame {gameName} {nickname}.";
+		SendMessageToServer(message, channelID);
+		return;
+	}
+	
+	if (nickName.length > 10) {
+		let message = "The nickname cannot be larger than 10 characters. Please shorten the nickname.";
+		SendMessageToServer(message, channelID);
+		return;
+	}
+	
 	var name = gameName.replace(/&/g, ' ');
 	
 	if (auth.adminID != userID)	//if user is not authorised admin, return
@@ -276,7 +327,7 @@ function AddGame(userID, channelID, gameName, nickName)
 	}	
 	
 	db.serialize(function() {
-		let sql = 'INSERT INTO Games(name, nickName) VALUES(?, ?)';
+		let sql = 'INSERT INTO Games(gameName, nickName) VALUES(?, ?)';
 		db.run(sql, [name, nickName], function(err) {
 			if (err) {
 				return console.error(err.message);
@@ -287,10 +338,11 @@ function AddGame(userID, channelID, gameName, nickName)
 				if (err) {
 					return console.error(err.message);
 				}
+				let message = `${name} with nickname ${nickName} has been added.`;
+				SendMessageToServer(message, channelID);
 			});
 		});
 	});
 	
-	let message = `${name} with short-hand name ${nickName} has been added.`;
-	SendMessageToServer(message, channelID);
+	
 }
