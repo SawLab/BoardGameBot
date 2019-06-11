@@ -2,6 +2,12 @@ var Discord = require('discord.io');
 var logger = require('winston');
 var auth = require('./auth.json');
 var sqlite3 = require('sqlite3').verbose();
+
+const MAX_GAME_NAME_LENGTH = 32;
+const MAX_NICKNAME_LENGTH = 10;
+const MAX_USERNAME_LENGTH = 32;
+const MIN_USERNAME_LENGTH = 2;
+
 var db = new sqlite3.Database('./BoardGameBot.db', (err) => {
 	if (err)
 	{
@@ -48,7 +54,10 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 				break;				
 			case 'addme':
 				AddMe(user, userID, channelID);
-				break;			
+				break;
+			case 'removeme':
+				RemoveMe(user, userID, channelID);
+				break;
 			case 'win':
 				AddWin(user, userID, channelID, cmd2);
 				break;
@@ -64,8 +73,8 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 			case 'source':
 				ViewSourceCode(channelID);
 				break;
-			case 'deleteusers':
-				DeleteUsers(channelID);
+			case 'deleteallusers':
+				DeleteUsers(userID, channelID);
 				break;
 			case 'addgame':
 				AddGame(userID, channelID, cmd2, cmd3);
@@ -84,6 +93,12 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 				break;
 			case 'deleteuser':
 				DeleteUser(userID, channelID, cmd2);
+				break;
+			case 'updategamename':
+				UpdateGameName(userID, channelID, cmd2, cmd3);
+				break;
+			case 'updatenickname':
+				UpdateNickname(userID, channelID, cmd2, cmd3);
 				break;
 			default:
 				IncorrectCommand(channelID);
@@ -326,6 +341,31 @@ function AddMe(user, userID, channelID)
 	});
 }
 
+//Allows the player to remove themeselves from the database
+function RemoveMe(user, userID, channelID)
+{
+	let sql = `SELECT userName FROM Users WHERE userID = ?`;
+	db.get(sql, [userID], function(err,row) {
+		if (row == null) {
+			let message = "You must first type !addme before you can delete yourself!"
+			return SendMessageToServer(message, channelID);
+		}
+		if (err) {
+			return console.error(err.message);
+		}
+		
+		sql = 'DELETE FROM Users WHERE userID = ?';
+		db.run(sql, [userID], function(err) {
+			if (err) {
+				return console.error(err.message);
+			}
+			let message = `${user} has been deleted from the database.`
+						+ `\nSorry to see you go... ;_;`;
+			SendMessageToServer(message, channelID);
+		});
+	});	
+}
+
 //Pings the bot
 function Ping(channelID)
 {
@@ -356,19 +396,6 @@ function Help(channelID)
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t!admin - view admin commands'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t!help - prints the help screen';
 	SendMessageToServer(message, channelID);
-}
-
-//ONLY FOR TESTING PURPOSES DELETE ONCE COMPLETE
-function DeleteUsers(channelID)
-{
-	let sql = "DELETE FROM Users";
-	let message = "User data deleted";
-	db.run(sql, [], function(err) {
-		if (err) {
-			return console.error(err.message);
-		}
-		SendMessageToServer(message, channelID);
-	});
 }
 
 //Retrieves the full user object
@@ -513,9 +540,12 @@ function ViewAdminCommands(channelID)
 {
 	let message = 'Admin Commands:'
 				+ '\n\t\t\t\t\t\t\t\t\t!addgame {Board&Game&Name} {nickname} - adds a game to the game list and begins tracking wins for all users'
-				+ '\n\t\t\t\t\t\t\t\t\t!addwin {username#0000} {nickname} - remove a win from the selected user'
-				+ '\n\t\t\t\t\t\t\t\t\t!addloss {username#0000} {nickname} - add a win from the selected user'
-				+ '\n\t\t\t\t\t\t\t\t\t!deleteuser {username#0000} - delete the specified user from the database';
+				+ '\n\t\t\t\t\t\t\t\t\t!addwin {username#1234} {nickname} - remove a win from the selected user'
+				+ '\n\t\t\t\t\t\t\t\t\t!addloss {username#1234} {nickname} - add a win from the selected user'
+				+ '\n\t\t\t\t\t\t\t\t\t!deleteuser {username#1234} - delete the specified user from the database'
+				+ '\n\t\t\t\t\t\t\t\t\t!deleteallusers - DELETES ALL USERS FROM THE DATABASE. BIG NO NO'
+				+ '\n\t\t\t\t\t\t\t\t\t!updategamename {nickname} {New&Game&Name} - updates the name of an existing game'
+				+ '\n\t\t\t\t\t\t\t\t\t!updatenickname {oldnickname} {newnickname} - updates the nickname of an existing game';
 	SendMessageToServer(message, channelID);
 }
 
@@ -560,6 +590,11 @@ function AddGame(userID, channelID, gameName, nickName)
 		let sql = 'INSERT INTO Games(gameName, nickName) VALUES(?, lower(?))';
 		db.run(sql, [name, nickName], function(err) {
 			if (err) {
+				if(err.message.includes("SQLITE_CONSTRAINT"))
+				{
+					let message = "This game name or nickname already exists in my system!";
+					SendMessageToServer(message, channelID);
+				}
 				return console.error(err.message);
 			}
 
@@ -590,12 +625,12 @@ function AddUserLoss(userID, channelID, userToEdit, game)
 	}
 	
 	if (userToEdit == null) {
-		let message = 'Missing the user to edit. Format: !adduserloss {username#0000} {nickname}';
+		let message = 'Missing the user to edit. Format: !addloss {username#1234} {nickname}';
 		return SendMessageToServer(message, channelID);
 	}
 	
 	if (game == null) {
-		let message = 'Missing game. Format: !adduserloss {username#0000} {nickname}';
+		let message = 'Missing game. Format: !addloss {username#1234} {nickname}';
 		return SendMessageToServer(message, channelID);
 	}	
 
@@ -604,12 +639,12 @@ function AddUserLoss(userID, channelID, userToEdit, game)
 	userToEditDiscriminator = userToEditSplit[1];
 	
 	if (userToEditSplit.length != 2 || userToEditDiscriminator.length != 4) { //check that user input is correct format
-		let message = 'Invalid user format. Format: !adduserloss {username#0000} {nickname}';
+		let message = 'Invalid user format. Format: !addloss {username#1234} {nickname}';
 		return SendMessageToServer(message, channelID);
 	}
 	
 	if (userToEditName.length < 2 || userToEditName.length > 32) {	//check to make sure its a name Discord allows
-		let message = 'Invalid user length. Username must be between 2 and 32 characters. Format: !adduserloss {username#0000} {nickname}';
+		let message = 'Invalid user length. Username must be between 2 and 32 characters. Format: !addloss {username#1234} {nickname}';
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -642,12 +677,12 @@ function AddUserWin(userID, channelID, userToEdit, game)
 	}
 	
 	if (userToEdit == null) {
-		let message = 'Missing the user to edit. Format: !adduserwin {username#0000} {nickname}';
+		let message = 'Missing the user to edit. Format: !addwin {username#1234} {nickname}';
 		return SendMessageToServer(message, channelID);
 	}
 	
 	if (game == null) {
-		let message = 'Missing game. Format: !adduserwin {username#0000} {nickname}';
+		let message = 'Missing game. Format: !addwin {username#1234} {nickname}';
 		return SendMessageToServer(message, channelID);
 	}	
 
@@ -656,12 +691,12 @@ function AddUserWin(userID, channelID, userToEdit, game)
 	userToEditDiscriminator = userToEditSplit[1];
 	
 	if (userToEditSplit.length != 2 || userToEditDiscriminator.length != 4) {	//Check that user input is correct format
-		let message = 'Invalid user format. Format: !adduserwin {username#0000} {nickname}';
+		let message = 'Invalid user format. Format: !addwin {username#1234} {nickname}';
 		return SendMessageToServer(message, channelID);
 	}
 	
 	if (userToEditName.length < 2 || userToEditName.length > 32) {  //Check to make sure its a name Discord allows
-		let message = 'Invalid user length. Username must be between 2 and 32 characters. Format: !adduserwin {username#0000} {nickname}';
+		let message = 'Invalid user length. Username must be between 2 and 32 characters. Format: !addwin {username#1234} {nickname}';
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -693,7 +728,7 @@ function DeleteUser(userID, channelID, userToDelete)
 	}
 	
 	if (userToDelete == null) {
-		let message = 'Missing user to delete. Format: !deleteuser {username#0000}';
+		let message = 'Missing user to delete. Format: !deleteuser {username#1234}';
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -702,12 +737,12 @@ function DeleteUser(userID, channelID, userToDelete)
 	userToDeleteDiscriminator = userToDeleteSplit[1];
 	
 	if (userToDeleteSplit.length != 2 || userToDeleteDiscriminator.length != 4) { //check input formatting
-		let message = 'Invalid user format. Format: !deleteuser {username#0000}';
+		let message = 'Invalid user format. Format: !deleteuser {username#1234}';
 		return SendMessageToServer(message, channelID);
 	}
 	
 	if (userToDeleteName.length < 2 || userToDeleteName.length > 32) { //check if the inputted name is allowed on Discord
-		let message = 'Invalid user. User must be between 2 and 32 characters. Format: !deleteuser {username#0000}';
+		let message = 'Invalid user. User must be between 2 and 32 characters. Format: !deleteuser {username#1234}';
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -726,5 +761,127 @@ function DeleteUser(userID, channelID, userToDelete)
 			SendMessageToServer(message, channelID);
 		});
 	});
+}
+
+//Admin only. WIPES ENTIRE USER DATABASE
+function DeleteUsers(userID, channelID)
+{
+	if (userID != auth.adminID) {
+		let message = 'WHAT DO YOU THINK YOU\'RE DOING? ONLY ADMINS CAN DO THAT!';
+		return SendMessageToServer(message, channelID);
+	}
 	
+	let sql = "DELETE FROM Users";
+	let message = "All user data deleted";
+	db.run(sql, [], function(err) {
+		if (err) {
+			return console.error(err.message);
+		}
+		SendMessageToServer(message, channelID);
+	});
+}
+
+//Admin only. Update the gameName of an existing game in the database
+function UpdateGameName(userID, channelID, nickName, newGameName)
+{
+	var oldGameName;
+	
+	if (userID != auth.adminID) {	//check for admin permissions
+		let message = 'You can\'t tell me what to do!';
+		return SendMessageToServer(message, channelID);
+	}
+	
+	if (nickName == null) {
+		let message = `Nickname for the game is missing. Format: !updategamename {nickname} {New&Game&Name}`;
+		return SendMessageToServer(message, channelID);
+	}
+	
+	if (newGameName == null) {
+		let message = `The new name for the game is missing. Format: !updategamename {nickname} {New&Game&Name}`;
+		return SendMessageToServer(message, channelID);
+	}
+
+	if (nickName.length > MAX_NICKNAME_LENGTH) {
+		let message = `The length of the nickname cannot be larger than ${MAX_NICKNAME_LENGTH} characters. Format: !updategamename {nickname} {New&Game&Name}`;
+		return SendMessageToServer(message, channelID);
+	}
+	
+	if (newGameName.length > MAX_GAME_NAME_LENGTH) {
+		let message = `The length of the game name cannot be larger than ${MAX_GAME_NAME_LENGTH} characters. Format: !updategamename {nickname} {New&Game&Name}`;
+		return SendMessageToServer(message, channelID);
+	}
+	
+	newGameName = newGameName.replace(/&/g, ' ');
+	
+	let sql = 'SELECT gameName FROM Games Where nickName = ?';
+	db.get(sql, [nickName], function(err, row) {
+		if (row == null) {
+			let message = 'That nickname does not exist in my system. Type !viewgames for a list of valid nicknames';
+			return SendMessageToServer(message, channelID);
+		}
+		oldGameName = row.gameName;
+		
+		sql = 'UPDATE Games SET gameName = ? WHERE nickName = lower(?)'
+		db.run(sql, [newGameName, nickName], function(err) {
+			if (err) {
+				return console.error(err.message);
+			}
+			let message = `'${oldGameName}' successfully changed to '${newGameName}'`;
+			SendMessageToServer(message, channelID);
+		});
+	});
+}
+
+function UpdateNickname(userID, channelID, oldNickName, newNickName)
+{
+	if (userID != auth.adminID) {	//check for admin permissions
+		let message = 'You can\'t tell me what to do!';
+		return SendMessageToServer(message, channelID);
+	}
+	
+	if (oldNickName == null)
+	{
+		let message = 'The current nickname is missing. Format: !updatenickname {oldNickName} {newNickName}';
+		return SendMessageToServer(message, channelID);
+	}
+	
+	if (newNickName == null)
+	{
+		let message = 'The new nickname is missing. Format: !updatenickname {oldNickName} {newNickName}';
+		return SendMessageToServer(message, channelID);
+	}
+	
+	if (newNickName.length > MAX_NICKNAME_LENGTH)
+	{
+		let message = 'The new nickname cannot be greater than ${MAX_NICKNAME_LENGTH}.';
+		return SendMessageToServer(message, channelID);
+	}
+	
+	let sql = 'UPDATE Games SET nickName = ? WHERE nickName = ?';
+	db.run(sql,[newNickName, oldNickName], function(err) {
+		if (err) {
+			return console.error(err.message);
+		}
+		sql = `ALTER TABLE Users RENAME COLUMN ${oldNickName} TO ${newNickName}`;
+		db.run(sql, [], function(err) {
+			if (err) {
+				if(err.message.includes("SQLITE_CONSTRAINT"))
+				{
+					let message = "This nickname already exists in my system!";
+					SendMessageToServer(message, channelID);
+				}
+				return console.error(err);
+			}
+			
+			sql = 'SELECT gameName FROM Games WHERE nickName = ?';
+			db.get(sql, [newNickName], function(err, row) {
+				if (row == null) {
+					let message = "Error: Could not validate nickname has changed.";
+					SendMessageToServer(message, channelID);
+				}
+			let message = `The nickname for ${row.gameName} has successfully changed from ${oldNickName} to ${newNickName}`
+			SendMessageToServer(message, channelID);
+			});
+		});
+	});
 }
