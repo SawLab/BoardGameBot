@@ -1031,7 +1031,7 @@ function ViewAllUsers(userID, channelID)
 function ViewAllWins(userID, channelID, gameNickname)
 {
 	if (userID != auth.adminID) {
-		let message = '<@!${userID}> can\'t tell me what to do!';
+		let message = `<@!${userID}> can\'t tell me what to do!`;
 		return SendMessageToServer(message, channelID);
 	}
 	
