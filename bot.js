@@ -42,6 +42,7 @@ bot.on('guildMemberAdd', function (member)
 bot.on('message', function (user, userID, channelID, message, evt) {
 	// Our bot needs to know if it will execute a command
     // It will listen for messages that will start with `!`
+	console.log(message);
     if (message.substring(0, 1) == '!') {
 		
 		if (channelID in bot.directMessages) {	//block direct message commands
@@ -121,6 +122,9 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 				break;
 			case 'viewwins':
 				ViewAllWins(userID, channelID, cmd2);
+				break;
+			case 'adduser':
+				AddUser(userID, channelID, cmd2);
 				break;
 			default:
 				IncorrectCommand(channelID);
@@ -804,12 +808,36 @@ function AddUserWin(userID, channelID, userToEdit, game)
 	});	
 }
 
+//Admin only. Adds the specified user to the database.
+function AddUser(userID, channelID, userToAdd)
+{
+	var userToAddID;
+	var userToAddObject;
+	
+	if (userID != auth.adminID) { //check if user is admin
+		let message = `<@!${userID}> can\'t tell me what to do!`;
+		return SendMessageToServer(message, channelID);
+	}
+	
+	
+	userToAddID = userToAdd.substring(3, userToAdd.length - 1);
+	console.log(userToAddID);
+	userToAddObject = GetUserByID(userToAddID);
+	console.log(userToAddObject);
+	console.log(bot.users);
+	
+	if (userToAddObject == null) {
+		let message = `${userToAdd} does not exist. Format: !adduser {@userMention}`;
+		return SendMessageToServer(message, channelID);
+	}
+	
+	AddMe(userToAddObject.username, userToAddID, channelID);
+}
+
 //Admin only. Delete another user from the system
 function DeleteUser(userID, channelID, userToDelete)
 {
-	var userToDeleteSplit;
-	var userToDeleteName;
-	var userToDeleteDiscriminator;
+	var userToDeleteID;
 	
 	if (userID != auth.adminID) { //check if user is admin
 		let message = `<@!${userID}> can\'t tell me what to do!`;
@@ -821,35 +849,14 @@ function DeleteUser(userID, channelID, userToDelete)
 		return SendMessageToServer(message, channelID);
 	}
 	
-	userToDeleteSplit = userToDelete.split('#');
-	userToDeleteName = userToDeleteSplit[0];
-	userToDeleteDiscriminator = userToDeleteSplit[1];
-	
-	if (userToDeleteSplit.length != 2 || userToDeleteDiscriminator.length != 4) { //check input formatting
-		let message = 'Invalid user format. Format: !deleteuser {username#1234}';
+	if(!CheckMentionFormat(userToDelete)) {
+		let message = 'Incorect user format. Format: !deleteuser {@userMention}';
 		return SendMessageToServer(message, channelID);
 	}
 	
-	if (userToDeleteName.length < MIN_USERNAME_LENGTH || userToDeleteName.length > MAX_USERNAME_LENGTH) { //check if the inputted name is allowed on Discord
-	let message = `Invalid user. User must be between ${MIN_USERNAME_LENGTH} and ${MAX_USERNAME_LENGTH} characters. Format: !deleteuser {username#1234}`;
-		return SendMessageToServer(message, channelID);
-	}
+	userToDeleteID = GetIDFromMention(userToDelete);
 	
-	let sql = `SELECT userID From Users WHERE userName = ? AND userDiscriminator = ?`;
-	db.get(sql, [userToDeleteName, userToDeleteDiscriminator], function(err, row) {	//check if the user to delete is in the database
-		if (row == null) {
-			let message = `<@!${userID}> does not exist in my system!`;
-			return SendMessageToServer(message, channelID);
-		}
-		sql = `DELETE FROM Users WHERE userName = ? AND userDiscriminator = ?`;		//then delete the selected user
-		db.run(sql, [userToDeleteName, userToDeleteDiscriminator], function(err) {
-			if (err) {
-				return console.error(err.message);
-			}
-			let message = `User <@!${userID}> has been deleted.`;
-			SendMessageToServer(message, channelID);
-		});
-	});
+	RemoveMe(userToDeleteID, channelID);
 }
 
 //Admin only. WIPES ENTIRE USER DATABASE
@@ -1144,4 +1151,21 @@ function GetUserByID(userID)
 {
 	var user = bot.users[userID];
 	return user;
+}
+
+//Verifies a user mention is in the correct format
+function CheckMentionFormat(mention) 
+{
+	if (mention.substring(0,2) != '<@' || mention.charAt(mention.length - 1) != '>') {
+		return false;
+	}
+	else {
+		return true;
+	}
+}
+
+//Gets the user id from a mention
+function GetIDFromMention(userMention)
+{
+	return userMention.substring(3, userMention.length - 1);
 }
