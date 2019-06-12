@@ -116,6 +116,9 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 			case 'updatenickname':
 				UpdateNickname(userID, channelID, cmd2, cmd3);
 				break;
+			case 'viewusers':
+				ViewAllUsers(userID, channelID);
+				break;
 			default:
 				IncorrectCommand(channelID);
 				break;
@@ -488,8 +491,6 @@ function ViewMyGameScore(userID, channelID, game)
 	var gameName;
 	var gameID;
 	
-	console.log(game);
-	
 	let sql = `SELECT gameID, gameName FROM Games WHERE gameNickname = ? COLLATE NOCASE`;	//Check if the game exists, if so grab its full name
 	db.get(sql, [game], function(err, row) {
 		console.log(row);
@@ -608,7 +609,8 @@ function ViewAdminCommands(channelID)
 				+ '\n\t\t\t\t\t\t\t\t\t**!deleteallusers** - DELETES ALL USERS FROM THE DATABASE. BIG NO NO'
 				+ '\n\t\t\t\t\t\t\t\t\t**!updategamename {nickname} {New_Game_Name}** - updates the name of an existing game'
 				+ '\n\t\t\t\t\t\t\t\t\t**!updatenickname {oldnickname} {newnickname}** - updates the nickname of an existing game'
-				+ '\n\t\t\t\t\t\t\t\t\t**!deletegame {nickname}** - deletes an existing game from the list and its recorded wins';
+				+ '\n\t\t\t\t\t\t\t\t\t**!deletegame {nickname}** - deletes an existing game from the list and its recorded wins'
+				+ '\n\t\t\t\t\t\t\t\t\t**!viewusers** - displays all recorded users in my system';
 	SendMessageToServer(message, channelID);
 }
 
@@ -998,6 +1000,28 @@ function UpdateNickname(userID, channelID, oldNickName, newNickName)
 	});
 }
 
+//Admin only. Prints all users in the system
+function ViewAllUsers(userID, channelID)
+{
+	if (auth.adminID != userID)
+	{
+		let message = 'You can\'t tell me what to do!';
+		return SendMessageToServer(message, channelID);
+	}
+	
+	let sql = `SELECT userID FROM Users`;
+	db.all(sql, [], function(err, rows) {
+		if (err) {
+			return console.error(err.message);
+		}
+		let message = `**__Displaying all registered users:__**\n`;
+		rows.forEach(function(row) {
+			message = `${message}<@!${row.userID}>\n`;
+		});
+		SendMessageToServer(message, channelID);
+	});
+	
+}
 /* CRUD FUNCTIONS */
 
 //Returns the gameID corresponding to given nickname
