@@ -119,6 +119,9 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 			case 'viewusers':
 				ViewAllUsers(userID, channelID);
 				break;
+			case 'viewwins':
+				ViewAllWins(userID, channelID, cmd2);
+				break;
 			default:
 				IncorrectCommand(channelID);
 				break;
@@ -610,7 +613,9 @@ function ViewAdminCommands(channelID)
 				+ '\n\t\t\t\t\t\t\t\t\t**!updategamename {nickname} {New_Game_Name}** - updates the name of an existing game'
 				+ '\n\t\t\t\t\t\t\t\t\t**!updatenickname {oldnickname} {newnickname}** - updates the nickname of an existing game'
 				+ '\n\t\t\t\t\t\t\t\t\t**!deletegame {nickname}** - deletes an existing game from the list and its recorded wins'
-				+ '\n\t\t\t\t\t\t\t\t\t**!viewusers** - displays all recorded users in my system';
+				+ '\n\t\t\t\t\t\t\t\t\t**!viewusers** - displays all recorded users in my system'
+				+ '\n\t\t\t\t\t\t\t\t\t**!viewwins** - displays all recorded users total wins'
+				+ '\n\t\t\t\t\t\t\t\t\t**!viewwins {nickname}** - displays all recorded users wins for the specified game';
 	SendMessageToServer(message, channelID);
 }
 
@@ -619,7 +624,7 @@ function AddGame(userID, channelID, gameName, nickName)
 {
 	if (auth.adminID != userID)	//if user is not authorised admin, return
 	{
-		let message = "You can't tell me to what to do!";
+		let message = `<@!${userID}> can't tell me to what to do!`;
 		return SendMessageToServer(message, channelID);				
 	}	
 	
@@ -706,7 +711,7 @@ function AddUserLoss(userID, channelID, userToEdit, game)
 	var userToEditID;
 	
 	if (userID != auth.adminID) {	//check for admin permissions
-		let message = 'You can\'t tell me what to do!';
+		let message = `<@!${userID}> can\'t tell me what to do!`;
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -757,7 +762,7 @@ function AddUserWin(userID, channelID, userToEdit, game)
 	var userToEditID;
 	
 	if (userID != auth.adminID) {
-		let message = 'You can\'t tell me what to do!';
+		let message = `<@!${userID}> can\'t tell me what to do!`;
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -807,7 +812,7 @@ function DeleteUser(userID, channelID, userToDelete)
 	var userToDeleteDiscriminator;
 	
 	if (userID != auth.adminID) { //check if user is admin
-		let message = 'You can\'t tell me what to do!';
+		let message = `<@!${userID}> can\'t tell me what to do!`;
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -851,7 +856,7 @@ function DeleteUser(userID, channelID, userToDelete)
 function DeleteUsers(userID, channelID)
 {
 	if (userID != auth.adminID) {
-		let message = 'WHAT DO YOU THINK YOU\'RE DOING? ONLY ADMINS CAN DO THAT!';
+		let message = `WHAT DO YOU THINK YOU\'RE DOING <@!${userID}>? ONLY ADMINS CAN DO THAT!`;
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -865,14 +870,14 @@ function DeleteUsers(userID, channelID)
 	});
 }
 
-//Deletes the entered games from the game list and all wins tracked for that game
+//Admin only. Deletes the entered games from the game list and all wins tracked for that game
 function DeleteGame(userID, channelID, gameNickname)
 {
 	var gameID;
 	var gameName;
 	
 	if (userID != auth.adminID) {
-		let message = 'You can\'t tell me what to do!';
+		let message = `<@!${userID}> can\'t tell me what to do!`;
 		SendMessageToServer(message, channelID);
 	}
 	
@@ -912,7 +917,7 @@ function UpdateGameName(userID, channelID, nickName, newGameName)
 	var oldGameName;
 	
 	if (userID != auth.adminID) {	//check for admin permissions
-		let message = 'You can\'t tell me what to do!';
+		let message = `<@!${userID}> can\'t tell me what to do!`;
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -961,7 +966,7 @@ function UpdateGameName(userID, channelID, nickName, newGameName)
 function UpdateNickname(userID, channelID, oldNickName, newNickName)
 {
 	if (userID != auth.adminID) {	//check for admin permissions
-		let message = 'You can\'t tell me what to do!';
+		let message = `<@!${userID}> can\'t tell me what to do!`;
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -1005,7 +1010,7 @@ function ViewAllUsers(userID, channelID)
 {
 	if (auth.adminID != userID)
 	{
-		let message = 'You can\'t tell me what to do!';
+		let message = `<@!${userID}> can\'t tell me what to do!`;
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -1019,9 +1024,71 @@ function ViewAllUsers(userID, channelID)
 			message = `${message}<@!${row.userID}>\n`;
 		});
 		SendMessageToServer(message, channelID);
-	});
-	
+	});	
 }
+
+//Admin only. Decides which view all function to use based on user input
+function ViewAllWins(userID, channelID, gameNickname)
+{
+	if (userID != auth.adminID) {
+		let message = '<@!${userID}> can\'t tell me what to do!';
+		return SendMessageToServer(message, channelID);
+	}
+	
+	if (gameNickname == null) {
+		ViewAllTotalWins(channelID);
+	}
+	else {
+		ViewAllWinsByGame(channelID, gameNickname);
+	}
+}
+
+//Admin only. Displays the total wins for each user.
+function ViewAllTotalWins(channelID)
+{
+	let sql = `SELECT userID, totalWins from Users`;
+	db.all(sql, [], function(err, rows) {
+		if (err) {
+			return console.error(err.message);
+		}
+		let message = `**__Displaying all users' total wins:__**\n`;
+		rows.forEach(function(row) {
+			message = `${message}<@!${row.userID}>: ${row.totalWins}\n`;
+		});
+		SendMessageToServer(message, channelID);
+	});
+}
+
+//Admin only. Displays the wins in the specified game for each user.
+function ViewAllWinsByGame(channelID, gameNickname) 
+{	
+	db.serialize(function() {
+		var gameName;
+		var gameID;
+		
+		let sql = `SELECT gameID, gameName FROM Games WHERE gameNickname = ? COLLATE NOCASE`;
+		db.get(sql, [gameNickname], function(err, row) {
+			if (err) {
+				return console.error(err.message);
+			}
+			gameName = row.gameName;
+			gameID = row.gameID;
+			
+				sql = `SELECT userID, wins FROM WinTable WHERE gameID = ?`;
+				db.all(sql, [gameID], function(err, rows) {
+				if (err) {
+					return console.error(err.message);
+				}
+				let message = `**__Displaying all user wins for the game ${gameName}:__**\n`;
+				rows.forEach(function(row) {
+					message = `${message}<@!${row.userID}>: ${row.wins}\n`;
+				});
+				SendMessageToServer(message, channelID);
+			});
+		});
+	});
+}
+
 /* CRUD FUNCTIONS */
 
 //Returns the gameID corresponding to given nickname
