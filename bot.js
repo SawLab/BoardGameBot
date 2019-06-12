@@ -51,12 +51,15 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 		}
 		
         var args = message.substring(1).split(' ');
-        var cmd1 = args[0].toLowerCase();
-		var cmd2 = args[1];
-		var cmd3 = args[2];
+        var cmd0 = args[0].toLowerCase();
+		console.log('cmd0: ' + cmd0);
+		var cmd1 = args[1];
+		console.log('cmd1: ' + cmd1);
+		var cmd2 = args[2];
+		console.log('cmd2: ' + cmd2);
        
         args = args.splice(1);
-        switch(cmd1) {
+        switch(cmd0) {
             case 'ping':
                 Ping(channelID);
 				break;
@@ -64,7 +67,7 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 				Help(channelID);
 				break;
 			case 'leaderboard': 	
-				Leaderboard(channelID, cmd2);
+				Leaderboard(channelID, cmd1);
 				break;				
 			case 'addme':
 				AddMe(user, userID, channelID);
@@ -73,13 +76,13 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 				RemoveMe(userID, channelID);
 				break;
 			case 'win':
-				AddWin(userID, channelID, cmd2);
+				AddWin(userID, channelID, cmd1);
 				break;
 			case 'loss':
-				AddLoss(userID, channelID, cmd2);
+				AddLoss(userID, channelID, cmd1);
 				break;			
 			case 'myscore':
-				ViewMyScore(userID, channelID, cmd2);
+				ViewMyScore(userID, channelID, cmd1);
 				break;
 			case 'namechange':
 				ChangeUserName(userID, channelID);
@@ -91,7 +94,7 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 				DeleteUsers(userID, channelID);
 				break;
 			case 'addgame':
-				AddGame(userID, channelID, cmd2, cmd3);
+				AddGame(userID, channelID, cmd1, cmd2);
 				break;
 			case 'viewgames':
 				ViewGames(channelID);
@@ -99,32 +102,32 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 			case 'admin':
 				ViewAdminCommands(channelID);
 				break;
-			case 'addwin':
-				AddUserWin(userID, channelID, cmd2, cmd3);
+			case 'givewin':
+				GiveUserWin(userID, channelID, cmd1, cmd2);
 				break;
-			case 'addloss':
-				AddUserLoss(userID, channelID, cmd2, cmd3);
+			case 'giveloss':
+				GiveUserLoss(userID, channelID, cmd1, cmd2);
 				break;
 			case 'deleteuser':
-				DeleteUser(userID, channelID, cmd2);
+				DeleteUser(userID, channelID, cmd1);
 				break;
 			case 'deletegame':
-				DeleteGame(userID, channelID, cmd2);
+				DeleteGame(userID, channelID, cmd1);
 				break;
 			case 'updategamename':
-				UpdateGameName(userID, channelID, cmd2, cmd3);
+				UpdateGameName(userID, channelID, cmd1, cmd2);
 				break;
 			case 'updatenickname':
-				UpdateNickname(userID, channelID, cmd2, cmd3);
+				UpdateNickname(userID, channelID, cmd1, cmd2);
 				break;
 			case 'viewusers':
 				ViewAllUsers(userID, channelID);
 				break;
 			case 'viewwins':
-				ViewAllWins(userID, channelID, cmd2);
+				ViewAllWins(userID, channelID, cmd1);
 				break;
 			case 'adduser':
-				AddUser(userID, channelID, cmd2);
+				AddUser(userID, channelID, cmd1);
 				break;
 			default:
 				IncorrectCommand(channelID);
@@ -610,13 +613,14 @@ function ViewAdminCommands(channelID)
 {
 	let message = 'Admin Commands:'
 				+ '\n\t\t\t\t\t\t\t\t\t**!addgame {New_Game_Name} {nickname}** - adds a game to the game list and begins tracking wins for all users'
-				+ '\n\t\t\t\t\t\t\t\t\t**!addwin {username#1234} {nickname}** - add a win from the selected user'
-				+ '\n\t\t\t\t\t\t\t\t\t**!addloss {username#1234} {nickname}** - remove a win from the selected user'
-				+ '\n\t\t\t\t\t\t\t\t\t**!deleteuser {username#1234}** - delete the specified user from the database'
-				+ '\n\t\t\t\t\t\t\t\t\t**!deleteallusers** - DELETES ALL USERS FROM THE DATABASE. BIG NO NO'
+				+ '\n\t\t\t\t\t\t\t\t\t**!deletegame {nickname}** - deletes an existing game from the list and its recorded wins'
 				+ '\n\t\t\t\t\t\t\t\t\t**!updategamename {nickname} {New_Game_Name}** - updates the name of an existing game'
 				+ '\n\t\t\t\t\t\t\t\t\t**!updatenickname {oldnickname} {newnickname}** - updates the nickname of an existing game'
-				+ '\n\t\t\t\t\t\t\t\t\t**!deletegame {nickname}** - deletes an existing game from the list and its recorded wins'
+				+ '\n\t\t\t\t\t\t\t\t\t**!givewin {@userMention}{nickname}** - add a win from the selected user'
+				+ '\n\t\t\t\t\t\t\t\t\t**!giveloss {@userMention} {nickname}** - remove a win from the selected user'
+				+ '\n\t\t\t\t\t\t\t\t\t**!adduser {@userMention}** - adds the specified user to the database'
+				+ '\n\t\t\t\t\t\t\t\t\t**!deleteuser {@userMention}** - delete the specified user from the database'
+				+ '\n\t\t\t\t\t\t\t\t\t**!deleteallusers** - DELETES ALL USERS FROM THE DATABASE. BIG NO NO'
 				+ '\n\t\t\t\t\t\t\t\t\t**!viewusers** - displays all recorded users in my system'
 				+ '\n\t\t\t\t\t\t\t\t\t**!viewwins** - displays all recorded users total wins'
 				+ '\n\t\t\t\t\t\t\t\t\t**!viewwins {nickname}** - displays all recorded users wins for the specified game';
@@ -706,63 +710,9 @@ function AddGame(userID, channelID, gameName, nickName)
 	});
 }
 
-//Admin only. Adds a player win to the specified user and game.
-function AddUserLoss(userID, channelID, userToEdit, game)
+//Admin only. Subtracts a player win from the specified user and game.
+function GiveUserLoss(userID, channelID, userToEdit, game)
 {
-	var userToEditSplit;
-	var userToEditName;
-	var userToEditDiscriminator;
-	var userToEditID;
-	
-	if (userID != auth.adminID) {	//check for admin permissions
-		let message = `<@!${userID}> can\'t tell me what to do!`;
-		return SendMessageToServer(message, channelID);
-	}
-	
-	if (userToEdit == null) {
-		let message = 'Missing the user to edit. Format: !addloss {username#1234} {nickname}';
-		return SendMessageToServer(message, channelID);
-	}
-	
-	if (game == null) {
-		let message = 'Missing game. Format: !addloss {username#1234} {nickname}';
-		return SendMessageToServer(message, channelID);
-	}	
-
-	userToEditSplit = userToEdit.split('#');
-	userToEditName = userToEditSplit[0];
-	userToEditDiscriminator = userToEditSplit[1];
-	
-	if (userToEditSplit.length != 2 || userToEditDiscriminator.length != 4) { //check that user input is correct format
-		let message = 'Invalid user format. Format: !addloss {username#1234} {nickname}';
-		return SendMessageToServer(message, channelID);
-	}
-	
-	if (userToEditName.length < MIN_USERNAME_LENGTH || userToEditName.length > MAX_USERNAME_LENGTH) {	//check to make sure its a name Discord allows
-		let message = `Invalid user length. Username must be between ${MIN_USERNAME_LENGTH} and ${MAX_USERNAME_LENGTH} characters. Format: !addloss {username#1234} {nickname}`;
-		return SendMessageToServer(message, channelID);
-	}
-	
-	let sql = `SELECT userID from Users WHERE userName = ? AND userDiscriminator = ?`; //find unique userID using username and discriminator
-	db.get(sql, [userToEditName, userToEditDiscriminator], function(err, row) {
-		if (err) {
-			return console.error(err.message);
-		}		
-		if (row == null) {
-			let message = `<@!${userID}> is not in my system!`;
-			return SendMessageToServer(message, channelID);
-		}
-		userToEditID = row.userID;
-		AddLoss(userToEditID, channelID, game); //call the AddLoss function with the gathered data
-	});	
-}
-
-//Admin only. Adds a player win to the specified user and game.
-function AddUserWin(userID, channelID, userToEdit, game)
-{
-	var userToEditSplit;
-	var userToEditName;
-	var userToEditDiscriminator;
 	var userToEditID;
 	
 	if (userID != auth.adminID) {
@@ -771,41 +721,63 @@ function AddUserWin(userID, channelID, userToEdit, game)
 	}
 	
 	if (userToEdit == null) {
-		let message = 'Missing the user to edit. Format: !addwin {username#1234} {nickname}';
+		let message = 'Missing the user to edit. Format: !giveloss {@userMention} {nickname}';
 		return SendMessageToServer(message, channelID);
 	}
 	
 	if (game == null) {
-		let message = 'Missing game. Format: !addwin {username#1234} {nickname}';
+		let message = 'Missing game. Format: !giveloss {@userMention} {nickname}';
+		return SendMessageToServer(message, channelID);
+	}
+
+	if (!CheckMentionFormat(userToEdit)) {
+		let message = 'Incorrect user format. Format: !giveloss {@userMention} {nickname}';
+		return SendMessageToServer(message, channelID);
+	}
+	
+	userToEditID = GetIDFromMention(userToEdit);
+	
+	if (GetUserByID(userToEditID) == null) {
+		let message = `${userToEdit} is not in this server. Format: !giveloss {@userMention} {nickname}`;
 		return SendMessageToServer(message, channelID);
 	}	
 
-	userToEditSplit = userToEdit.split('#');
-	userToEditName = userToEditSplit[0];
-	userToEditDiscriminator = userToEditSplit[1];
+		AddLoss(userToEditID, channelID, game); //Call the AddLoss function with user's id
+}
+
+//Admin only. Adds a player win to the specified user and game.
+function GiveUserWin(userID, channelID, userToEdit, game)
+{
+	var userToEditID;
 	
-	if (userToEditSplit.length != 2 || userToEditDiscriminator.length != 4) {	//Check that user input is correct format
-		let message = 'Invalid user format. Format: !addwin {username#1234} {nickname}';
+	if (userID != auth.adminID) {
+		let message = `<@!${userID}> can\'t tell me what to do!`;
 		return SendMessageToServer(message, channelID);
 	}
 	
-	if (userToEditName.length < MIN_USERNAME_LENGTH || userToEditName.length > MAX_USERNAME_LENGTH) {  //Check to make sure its a name Discord allows
-		let message = `Invalid user length. Username must be between ${MIN_USERNAME_LENGTH} and ${MAX_USERNAME_LENGTH} characters. Format: !addwin {username#1234} {nickname}`;
+	if (userToEdit == null) {
+		let message = 'Missing the user to edit. Format: !givewin {@userMention} {nickname}';
 		return SendMessageToServer(message, channelID);
 	}
 	
-	let sql = `SELECT userID from Users WHERE userName = ? AND userDiscriminator = ?`;
-	db.get(sql, [userToEditName, userToEditDiscriminator], function(err, row) {    //find unique userID using username and discriminator
-		if (err) {
-			return console.error(err.message);
-		}		
-		if (row == null) {
-			let message = `<@!${userID}> is not in my system!`;
-			return SendMessageToServer(message, channelID);
-		}
-		userToEditID = row.userID;
-		AddWin(userToEditID, channelID, game); //Call the AddWin function with the gathered data
-	});	
+	if (game == null) {
+		let message = 'Missing game. Format: !givewin {@userMention} {nickname}';
+		return SendMessageToServer(message, channelID);
+	}
+
+	if (!CheckMentionFormat(userToEdit)) {
+		let message = 'Incorrect user format. Format: !givewin {@userMention} {nickname}';
+		return SendMessageToServer(message, channelID);
+	}
+	
+	userToEditID = GetIDFromMention(userToEdit);
+	
+	if (GetUserByID(userToEditID) == null) {
+		let message = `${userToEdit} is not in this server. Format: !givewin {@userMention} {nickname}`;
+		return SendMessageToServer(message, channelID);
+	}	
+
+		AddWin(userToEditID, channelID, game); //Call the AddWin function with user's id
 }
 
 //Admin only. Adds the specified user to the database.
@@ -819,12 +791,13 @@ function AddUser(userID, channelID, userToAdd)
 		return SendMessageToServer(message, channelID);
 	}
 	
+	if (!CheckMentionFormat(userToAdd)) {
+		let message = 'Incorrect user format. Format: !adduser {@userMention}';
+		return SendMessageToServer(message, channelID);
+	}
 	
-	userToAddID = userToAdd.substring(3, userToAdd.length - 1);
-	console.log(userToAddID);
+	userToAddID = GetIDFromMention(userToAdd);
 	userToAddObject = GetUserByID(userToAddID);
-	console.log(userToAddObject);
-	console.log(bot.users);
 	
 	if (userToAddObject == null) {
 		let message = `${userToAdd} does not exist. Format: !adduser {@userMention}`;
@@ -1167,5 +1140,8 @@ function CheckMentionFormat(mention)
 //Gets the user id from a mention
 function GetIDFromMention(userMention)
 {
-	return userMention.substring(3, userMention.length - 1);
+	var id;
+	userMention = userMention.replace('!', ''); //check if they are using a nickame
+    id = userMention.substring(2, userMention.length - 1);
+	return id;
 }
