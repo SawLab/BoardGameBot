@@ -40,7 +40,6 @@ bot.on('guildMemberAdd', function (member)
 });
 
 bot.on('message', function (user, userID, channelID, message, evt) {
-	console.log(message);
 	// Our bot needs to know if it will execute a command
     // It will listen for messages that will start with `!`
     if (message.substring(0, 1) == '!') {
@@ -160,7 +159,7 @@ function GameWinsLeaderboard(channelID, game)
 					if (error) {
 						console.error(error.message);
 					}
-					var messageToSend = `Top ${gameName} winners:\n`;
+					var messageToSend = `__**Top ${gameName} winners:**__\n`;
 					var i = 1;
 					var numToPrint = rows.length < 6 ? rows.length + 1 : 6; //print the top 5 scores; if less than 5 users print the same number as the number users
 					
@@ -185,7 +184,7 @@ function TotalWinsLeaderboard(channelID) {
 				if (error) {
 					console.error(error.message);
 				}
-				var messageToSend = "Top winners across all games:\n";
+				var messageToSend = "__**Top winners across all games:**__\n";
 				var i = 1;
 				var numToPrint = rows.length < 6 ? rows.length + 1 : 6; //print the top 5 scores; if less than 5 users print the same number as the number users
 				
@@ -231,7 +230,7 @@ function AddWin(userID, channelID, gameNickName)
 			sql = `SELECT gameID, gameName FROM Games WHERE gameNickname = ? COLLATE NOCASE`;	//Find game wins to check that the specified game is in the system.
 			db.get(sql, [gameNickName], (err, row) => {
 				if (row == null) {
-					let message = `${gameNickName} is not a valid nickname. Type !viewgames for a list of valid nicknames.`;
+					let message = `**${gameNickName}** is not a valid nickname. Type !viewgames for a list of valid nicknames.`;
 					SendMessageToServer(message, channelID);
 					return;
 				}
@@ -262,7 +261,7 @@ function AddWin(userID, channelID, gameNickName)
 						if (err) {
 							console.error(err.message);
 						}
-						let message = `Congratulations <@!${userID}>! You now have ${gameWins} wins in ${gameName} and your total wins are now ${totalWins}.`;
+						let message = `Congratulations <@!${userID}>! You now have **${gameWins}** wins in **${gameName}** and your total wins are now **${totalWins}**.`;
 						SendMessageToServer(message, channelID);
 					});				
 				});
@@ -296,7 +295,7 @@ function AddLoss(userID, channelID, gameNickName)
 				return console.error(err.message);
 			}
 			totalWins = row.wins;
-			totalWins = totalWins - 1; //increase player's total win count by 1
+			totalWins = totalWins - 1; //decrease player's total win count by 1
 			
 			if (totalWins < 0) {
 				let message = `<@!${userID}> cannot have less than 0 total wins.`;
@@ -322,10 +321,10 @@ function AddLoss(userID, channelID, gameNickName)
 						return console.error(err.message);
 					}
 					gameWins = row.wins;
-					gameWins = gameWins - 1;
+					gameWins = gameWins - 1;		//decrement the specified game win count.
 					
 					if (gameWins < 0) {
-						let message = `<@!${userID}> cannot have less than 0 wins in ${gameName}.`;
+						let message = `<@!${userID}> cannot have less than 0 wins in **${gameName}**.`;
 						return SendMessageToServer(message, channelID);
 					}
 					
@@ -342,7 +341,7 @@ function AddLoss(userID, channelID, gameNickName)
 						if (err) {
 							console.error(err.message);
 						}
-						let message = `<@!${userID}> now has ${gameWins} wins in ${gameName} and their total wins have been reduced to ${totalWins}.`;
+						let message = `<@!${userID}> now has **${gameWins}** wins in **${gameName}** and their total wins have been reduced to **${totalWins}**.`;
 						SendMessageToServer(message, channelID);
 					});				
 				});
@@ -365,7 +364,7 @@ function AddMe(user, userID, channelID)
 			{
 				if(err.message.includes("SQLITE_CONSTRAINT"))
 				{
-					let message = "You already exist in my system!";
+					let message = `<@!${userID}> already exist in my system!`;
 					SendMessageToServer(message, channelID);
 				}
 				return console.error(err.message);
@@ -403,7 +402,7 @@ function RemoveMe(userID, channelID)
 	let sql = `SELECT userName FROM Users WHERE userID = ?`;	//first checks to make sure the user is in the system
 	db.get(sql, [userID], function(err,row) {
 		if (row == null) {
-			let message = `<@!${userID}> must first type !addme before you can delete yourself!`
+			let message = `<@!${userID}> must first type !addme before they can delete themself!`
 			return SendMessageToServer(message, channelID);
 		}
 		if (err) {
@@ -448,18 +447,18 @@ function IncorrectCommand(channelID)
 function Help(channelID)
 {
 	let message = 'Approved Commands:'
-				+ '\n\t\t\t\t\t\t\t\t\t\t\t!addme - adds you to the database so you can start tracking your wins!'
-				+ '\n\t\t\t\t\t\t\t\t\t\t\t!leaderboard - prints the top 5 users across all games'
-				+ '\n\t\t\t\t\t\t\t\t\t\t\t!leaderboard {nickname} - prints the top 5 users for the specified game'
-				+ '\n\t\t\t\t\t\t\t\t\t\t\t!win {nickname} - adds a win to your account for the specified game'
-				+ '\n\t\t\t\t\t\t\t\t\t\t\t!loss {nickname} - removes a win from your account for the specified game'
-				+ '\n\t\t\t\t\t\t\t\t\t\t\t!myscore - view your total wins'
-				+ '\n\t\t\t\t\t\t\t\t\t\t\t!myscore {nickname} - view your total wins for the specified game'
-				+ '\n\t\t\t\t\t\t\t\t\t\t\t!viewgames - view list of all games and their nicknames'
-				+ '\n\t\t\t\t\t\t\t\t\t\t\t!namechange - enter this command if you\'ve changed your Discord username after adding yourself to my system'
-				+ '\n\t\t\t\t\t\t\t\t\t\t\t!source - view my source code'
-				+ '\n\t\t\t\t\t\t\t\t\t\t\t!admin - view admin commands'
-				+ '\n\t\t\t\t\t\t\t\t\t\t\t!help - prints the help screen';
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!addme** - adds you to the database so you can start tracking your wins!'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!leaderboard** - prints the top 5 users across all games'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!leaderboard {nickname}** - prints the top 5 users for the specified game'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!win {nickname}** - adds a win to your account for the specified game'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!loss {nickname}** - removes a win from your account for the specified game'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!myscore** - view your total wins'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!myscore {nickname}** - view your total wins for the specified game'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!viewgames** - view list of all games and their nicknames'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!namechange** - enter this command if you\'ve changed your Discord username after adding yourself to my system'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!source** - view my source code'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!admin** - view admin commands'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!help** - prints the help screen';
 	SendMessageToServer(message, channelID);
 }
 
@@ -495,7 +494,7 @@ function ViewMyGameScore(userID, channelID, game)
 	db.get(sql, [game], function(err, row) {
 		console.log(row);
 		if (row == null) {
-			let message = "Invalid nickname. Type !viewgames for a list of valid nicknames.";
+			let message = `**${game}** is an invalid nickname. Type !viewgames for a list of valid nicknames.`;
 			return SendMessageToServer(message, channelID);
 		}
 		if (err) {
@@ -506,7 +505,7 @@ function ViewMyGameScore(userID, channelID, game)
 		
 	    sql = `SELECT wins FROM WinTable WHERE userID = ? AND gameID = ?`;
 		db.get(sql, [userID, gameID], function(err, row) {
-			let message = `<@!${userID}> has ${row.wins} wins for ${gameName}.`;
+			let message = `<@!${userID}> has **${row.wins}** wins for **${gameName}**.`;
 			SendMessageToServer(message, channelID);
 		});
 	});	
@@ -520,7 +519,7 @@ function ViewMyTotalScore(userID, channelID)
 		if(err)	{
 			return console.error(err.message);
 		}
-		let message = `Total wins for <@!${userID}> is: ${row.wins}`;
+		let message = `Total wins for <@!${userID}> is: **${row.wins}**`;
 		SendMessageToServer(message, channelID);
 	});
 }
@@ -549,7 +548,7 @@ function ChangeUserName(userID, channelID)
 			var prevDiscriminator = row.discriminator;
 			var prevNickname = row.userNickname
 			
-			if(prevName === newName && prevDiscriminator === newDiscriminator && prevNickname === newNickName) {		//if name has not changed: return. No need to update.
+			if(prevName === newName && prevDiscriminator === newDiscriminator && prevNickname == newNickName) {		//if name has not changed: return. No need to update.
 				let message = "You are up to date in my system. No change needed!";
 				SendMessageToServer(message, channelID);
 				return;
@@ -560,7 +559,7 @@ function ChangeUserName(userID, channelID)
 				if(err) {
 					return console.error(err.message);
 				}
-				let message = `Name successfully changed from ${prevName}#${prevDiscriminator} to ${newName}#${newDiscriminator}`;
+				let message = `Name successfully changed from **${prevName}#${prevDiscriminator}** to **${newName}#${newDiscriminator}**`;
 				SendMessageToServer(message, channelID);
 			});
 		});
@@ -590,7 +589,7 @@ function ViewGames(channelID)
 			SendMessageToServer(message, channelID);
 		}
 		
-		let message = "";
+		let message = "__**Game Name: Nickname**__\n";
 		rows.forEach(row => {
 			message = `${message}${row.name}: ${row.nick}\n`;	
 		});		
@@ -602,14 +601,14 @@ function ViewGames(channelID)
 function ViewAdminCommands(channelID)
 {
 	let message = 'Admin Commands:'
-				+ '\n\t\t\t\t\t\t\t\t\t!addgame {Board_Game_Name} {nickname} - adds a game to the game list and begins tracking wins for all users'
-				+ '\n\t\t\t\t\t\t\t\t\t!addwin {username#1234} {nickname} - add a win from the selected user'
-				+ '\n\t\t\t\t\t\t\t\t\t!addloss {username#1234} {nickname} - remove a win from the selected user'
-				+ '\n\t\t\t\t\t\t\t\t\t!deleteuser {username#1234} - delete the specified user from the database'
-				+ '\n\t\t\t\t\t\t\t\t\t!deleteallusers - DELETES ALL USERS FROM THE DATABASE. BIG NO NO'
-				+ '\n\t\t\t\t\t\t\t\t\t!updategamename {nickname} {New&Game&Name} - updates the name of an existing game'
-				+ '\n\t\t\t\t\t\t\t\t\t!updatenickname {oldnickname} {newnickname} - updates the nickname of an existing game'
-				+ '\n\t\t\t\t\t\t\t\t\t!deletegame {nickname} - deletes an existing game from the list and its recorded wins';
+				+ '\n\t\t\t\t\t\t\t\t\t**!addgame {New_Game_Name} {nickname}** - adds a game to the game list and begins tracking wins for all users'
+				+ '\n\t\t\t\t\t\t\t\t\t**!addwin {username#1234} {nickname}** - add a win from the selected user'
+				+ '\n\t\t\t\t\t\t\t\t\t**!addloss {username#1234} {nickname}** - remove a win from the selected user'
+				+ '\n\t\t\t\t\t\t\t\t\t**!deleteuser {username#1234}** - delete the specified user from the database'
+				+ '\n\t\t\t\t\t\t\t\t\t**!deleteallusers** - DELETES ALL USERS FROM THE DATABASE. BIG NO NO'
+				+ '\n\t\t\t\t\t\t\t\t\t**!updategamename {nickname} {New_Game_Name}** - updates the name of an existing game'
+				+ '\n\t\t\t\t\t\t\t\t\t**!updatenickname {oldnickname} {newnickname}** - updates the nickname of an existing game'
+				+ '\n\t\t\t\t\t\t\t\t\t**!deletegame {nickname}** - deletes an existing game from the list and its recorded wins';
 	SendMessageToServer(message, channelID);
 }
 
@@ -688,7 +687,7 @@ function AddGame(userID, channelID, gameName, nickName)
 							}								
 						});	
 					});
-				let message = `${formattedGameName} with nickname ${nickName} has been added to the game list and is ready to start tracking wins!`;
+				let message = `**${formattedGameName}** with nickname **${nickName}** has been added to the game list and is ready to start tracking wins!`;
 				SendMessageToServer(message, channelID);	
 				});
 			});
@@ -882,7 +881,7 @@ function DeleteGame(userID, channelID, gameNickname)
 				return console.error(err.message);
 			}
 			if (row == null) {
-				let message = `Game with nickname ${gameNickname} does not exist in my system`;
+				let message = `Game with nickname **${gameNickname}** does not exist in my system`;
 				return SendMessageToServer(message, channelID);
 			}	
 			gameName = row.gameName;
@@ -897,7 +896,7 @@ function DeleteGame(userID, channelID, gameNickname)
 					if (err) {
 						return console.error(err.message);
 					}
-					let message = `${gameName} has been deleted from the database along with its recorded wins.`;
+					let message = `**${gameName}** has been deleted from the database along with its recorded wins.`;
 					SendMessageToServer(message, channelID);
 				});
 			});
@@ -940,7 +939,7 @@ function UpdateGameName(userID, channelID, nickName, newGameName)
 	let sql = 'SELECT gameName FROM Games Where gameNickname = ? COLLATE NOCASE';
 	db.get(sql, [nickName], function(err, row) {
 		if (row == null) {
-			let message = 'That nickname does not exist in my system. Type !viewgames for a list of valid nicknames COLLATE NOCASE';
+			let message = `**${nickName}** does not exist in my system. Type !viewgames for a list of valid nicknames.`;
 			return SendMessageToServer(message, channelID);
 		}
 		oldGameName = row.gameName;
@@ -950,7 +949,7 @@ function UpdateGameName(userID, channelID, nickName, newGameName)
 			if (err) {
 				return console.error(err.message);
 			}
-			let message = `'${oldGameName}' successfully changed to '${newGameName}'`;
+			let message = `'**${oldGameName}**' successfully changed to '**${newGameName}**'`;
 			SendMessageToServer(message, channelID);
 		});
 	});
@@ -993,7 +992,7 @@ function UpdateNickname(userID, channelID, oldNickName, newNickName)
 					let message = "Error: Could not validate nickname has changed.";
 					SendMessageToServer(message, channelID);
 				}
-				let message = `The nickname for ${row.gameName} has changed from ${oldNickName} to ${newNickName}.`
+				let message = `The nickname for **${row.gameName}** has changed from **${oldNickName}** to **${newNickName}**.`
 				SendMessageToServer(message, channelID);
 			});
 	});
