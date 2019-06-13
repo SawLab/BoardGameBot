@@ -256,7 +256,7 @@ function AddWin(userID, channelID, gameNickname)
 		db.get(sql, [gameNickname], function(err, row) {
 			if (err) { return console.error(err.message); }
 			if (row == null) {
-				let message = `The nickname **${gameNickname}** does not exist. Type **!viewgames** for a list of valid nicknames.**`;
+				let message = `The nickname **${gameNickname}** does not exist. Type **!viewgames** for a list of valid nicknames.`;
 				return SendMessageToServer(message, channelID);
 			}
 			gameID = row.gameID;
@@ -292,7 +292,7 @@ function AddWin(userID, channelID, gameNickname)
 							sql = `UPDATE Users SET totalWins = ?, weeklyWins = ? Where userID = ?`; //set the total wins to the sum
 							db.run(sql, [totalWins, weeklyWins, userID], function(err) {
 								if (err) { return console.error(err.message); }
-								let message = `Congratulations <@!${userID}>! You now have **${gameWins}** wins in **${gameName}** and your total wins are now **${totalWins}**.`;
+								let message = `Congratulations <@!${userID}>! You now have **${gameWins}** wins in **${gameName}** and your total wins are now **${totalWins}**. :gem:`;
 								SendMessageToServer(message, channelID);
 							});
 						});	
@@ -322,7 +322,7 @@ function AddLoss(userID, channelID, gameNickname)
 		db.get(sql, [gameNickname], function(err, row) {
 			if (err) { return console.error(err.message); }
 			if (row == null) {
-				let message = `The nickname **${gameNickname}** does not exist. Type !viewgames for a list of valid nicknames.**`;
+				let message = `The nickname **${gameNickname}** does not exist. Type **!viewgames** for a list of valid nicknames.`;
 				return SendMessageToServer(message, channelID);
 			}
 			gameID = row.gameID;
@@ -332,7 +332,7 @@ function AddLoss(userID, channelID, gameNickname)
 			db.get(sql, [userID, gameID], function(err, row) {
 				if (err) { return console.error(err.message); }
 				if (row == null) {
-					let message = `<@!${userID}> is not in my system! Type !addme so you can start tracking your wins.`
+					let message = `<@!${userID}> is not in my system! Type **!addme** so you can start tracking your wins.`
 					return SendMessageToServer(message, channelID);
 				}
 				gameWins = row.wins;
@@ -363,7 +363,7 @@ function AddLoss(userID, channelID, gameNickname)
 							sql = `UPDATE Users SET totalWins = ?, weeklyWins = ? Where userID = ?`; //set the total wins to the sum
 							db.run(sql, [totalWins, weeklyWins, userID], function(err) {
 								if (err) { return console.error(err.message); }
-								let message = `<@!${userID}> now has **${gameWins}** wins in **${gameName}** and their total wins have been reduced to **${totalWins}**.`;
+								let message = `<@!${userID}> now has **${gameWins}** wins in **${gameName}** and their total wins have been reduced to **${totalWins}**. :bomb: `;
 								SendMessageToServer(message, channelID);
 							});
 						});
@@ -415,7 +415,7 @@ function AddMe(user, userID, channelID)
 						}						
 					});
 				});
-				let message = `<@!${userID}> is now ready to start tracking their wins!`;
+				let message = `<@!${userID}> is now ready to start tracking their wins! :game_die: `;
 				SendMessageToServer(message, channelID);
 			});	
 		});	 									
@@ -450,7 +450,7 @@ function RemoveMe(userID, channelID)
 		});
 		
 		let message = `<@!${userID}> has been deleted from the database.`
-						+ `\nSorry to see you go... ;_;`;
+						+ `\nSorry to see you go... :cry: `;
 			SendMessageToServer(message, channelID);
 	});	
 }
@@ -765,7 +765,7 @@ function DeleteUser(userID, channelID, userToDelete)
 	var userToDeleteID;
 	
 	if (userID != auth.headAdminID) { //check if user is admin
-		let message = `<@!${userID}> is not the head admin!`;
+		let message = `<@!${userID}> is not the head admin! :rage:`;
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -792,7 +792,7 @@ function DeleteAdmin(userID, channelID, adminToDelete)
 	var adminList;
 	var adminToDeleteID;
 	if (userID != auth.headAdminID) {
-		let message = `<@!${userID}> is not the head admin!`
+		let message = `<@!${userID}> is not the head admin! :rage:`
 		return SendMessageToServer(message, channelID);
 	}
 	adminList = auth.adminIDs;
@@ -838,7 +838,7 @@ function AddAdmin(userID, channelID, newAdmin)
 	var adminList;
 	var adminToAddID;
 	if (userID != auth.headAdminID) {
-		let message = `<@!${userID}> is not the head admin!`
+		let message = `<@!${userID}> is not the head admin! :rage: `
 		return SendMessageToServer(message, channelID);
 	}
 	adminList = auth.adminIDs;
@@ -885,7 +885,7 @@ function DeleteGame(userID, channelID, gameNickname)
 	var gameName;
 	
 	if (userID != auth.headAdminID) {
-		let message = `<@!${userID}> is not the head admin!`
+		let message = `<@!${userID}> is not the head admin! :rage: `
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -923,7 +923,7 @@ function DeleteGame(userID, channelID, gameNickname)
 function DeleteUsers(userID, channelID)
 {
 	if (userID != auth.headAdminID) {
-		let message = `<@!${userID}> is not the head admin!`
+		let message = `<@!${userID}> is not the head admin! :rage:`
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -946,7 +946,7 @@ function GiveUserWin(userID, channelID, userToEdit, game)
 	var userToEditID;
 	
 	if (!auth.adminIDs.includes(userID) && userID != auth.headAdminID) {
-		let message = `<@!${userID}> can\'t tell me what to do!`;
+		let message = `<@!${userID}> can\'t tell me what to do! :rage:`;
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -979,7 +979,7 @@ function GiveUserWin(userID, channelID, userToEdit, game)
 function AddGame(userID, channelID, gameName, nickName)
 {
 	if (!auth.adminIDs.includes(userID) && userID != auth.headAdminID) {
-		let message = `<@!${userID}> can\'t tell me what to do!`;
+		let message = `<@!${userID}> can\'t tell me what to do! :rage:`;
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -1063,7 +1063,7 @@ function GiveUserLoss(userID, channelID, userToEdit, game)
 	var userToEditID;
 	
 	if (!auth.adminIDs.includes(userID) && userID != auth.headAdminID) {
-		let message = `<@!${userID}> can\'t tell me what to do!`;
+		let message = `<@!${userID}> can\'t tell me what to do! :rage:`;
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -1099,7 +1099,7 @@ function AddUser(userID, channelID, userToAdd)
 	var userToAddObject;
 	
 	if (!auth.adminIDs.includes(userID) && userID != auth.headAdminID) {
-		let message = `<@!${userID}> can\'t tell me what to do!`;
+		let message = `<@!${userID}> can\'t tell me what to do! :rage:`;
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -1125,7 +1125,7 @@ function UpdateGameName(userID, channelID, nickName, newGameName)
 	var oldGameName;
 	
 	if (!auth.adminIDs.includes(userID) && userID != auth.headAdminID) {
-		let message = `<@!${userID}> can\'t tell me what to do!`;
+		let message = `<@!${userID}> can\'t tell me what to do! :rage:`;
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -1174,7 +1174,7 @@ function UpdateGameName(userID, channelID, nickName, newGameName)
 function UpdateNickname(userID, channelID, oldNickName, newNickName)
 {
 	if (!auth.adminIDs.includes(userID) && userID != auth.headAdminID) {
-		let message = `<@!${userID}> can\'t tell me what to do!`;
+		let message = `<@!${userID}> can\'t tell me what to do! :rage:`;
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -1217,7 +1217,7 @@ function UpdateNickname(userID, channelID, oldNickName, newNickName)
 function ViewAllUsers(userID, channelID)
 {
 	if (!auth.adminIDs.includes(userID) && userID != auth.headAdminID) {
-		let message = `<@!${userID}> can\'t tell me what to do!`;
+		let message = `<@!${userID}> can\'t tell me what to do! :rage:`;
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -1238,7 +1238,7 @@ function ViewAllUsers(userID, channelID)
 function ViewAllWins(userID, channelID, gameNickname)
 {
 	if (!auth.adminIDs.includes(userID) && userID != auth.headAdminID) {
-		let message = `<@!${userID}> can\'t tell me what to do!`;
+		let message = `<@!${userID}> can\'t tell me what to do! :rage:`;
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -1306,7 +1306,7 @@ function ResetUserWins(userID, channelID, userToReset)
 	var userToResetID;
 	
 	if (!auth.adminIDs.includes(userID) && userID != auth.headAdminID) {
-		let message = `<@!${userID}> can\'t tell me what to do!`;
+		let message = `<@!${userID}> can\'t tell me what to do! :rage:`;
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -1342,7 +1342,7 @@ function Fight(userID, channelID, user1, user2)
 	var user1ID;
 	
 	if (!auth.adminIDs.includes(userID) && userID != auth.headAdminID) {
-		let message = `<@!${userID}> can\'t tell me what to do!`;
+		let message = `<@!${userID}> can\'t tell me what to do! :rage:`;
 		return SendMessageToServer(message, channelID);
 	}
 	
