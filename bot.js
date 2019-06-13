@@ -147,6 +147,9 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 			case 'duel':
 				DuelUser(userID, channelID, cmd1);
 				break;
+			case 'fight':
+				Fight(userID, channelID, cmd1, cmd2);
+				break;
 			default:
 				IncorrectCommand(channelID);
 				break;
@@ -617,7 +620,8 @@ function ViewAdminCommands(channelID)
 				+ '\n\t\t\t\t\t\t\t\t\t**!updatenickname {oldnickname} {newnickname}** - updates the nickname of an existing game'
 				+ '\n\t\t\t\t\t\t\t\t\t**!givewin {@userMention}{nickname}** - add a win from the selected user'
 				+ '\n\t\t\t\t\t\t\t\t\t**!giveloss {@userMention} {nickname}** - remove a win from the selected user'
-				+ '\n\t\t\t\t\t\t\t\t\t**!adduser {@userMention}** - adds the specified user to the database'
+				+ '\n\t\t\t\t\t\t\t\t\t**!adduser {@userMention}** - force two users to duel'
+				+ '\n\t\t\t\t\t\t\t\t\t**!fight {@user1Mention} {@user2Mention}** - adds the specified user to the database'
 				+ '\n\t\t\t\t\t\t\t\t\t**!resetuser {@userMention}** - resets all the specified user\'s wins back to 0'
 				+ '\n\t\t\t\t\t\t\t\t\t**!viewusers** - displays all recorded users in my system'
 				+ '\n\t\t\t\t\t\t\t\t\t**!viewwins** - displays all recorded users total wins'
@@ -686,18 +690,19 @@ function DuelUser(userID, channelID, userToDuel)
 	userToDuelID = GetIDFromMention(userToDuel);
 	
 
-	let sql = `SELECT gameID, wins FROM WinTable WHERE userID = ? ORDER BY gameID`;
+	let sql = `SELECT gameID, wins FROM WinTable WHERE userID = ? ORDER BY gameID`; //get user1 win records
 	db.all(sql, [userID], function(err, rows) {
 		if (err) { return console.error(err.message); }
 		user1WinRecords = rows;
 		
-		sql = `SELECT gameID, wins FROM WinTable WHERE userID = ? ORDER BY gameID`;
+		sql = `SELECT gameID, wins FROM WinTable WHERE userID = ? ORDER BY gameID`; //get user2 win records
 		db.all(sql, [userToDuelID], function(err, rows) {
 			if (err) { return console.error(err.message); }
 			user2WinRecords = rows;
 			
 			if (user1WinRecords.length != user2WinRecords.length) {
-				let message = `This shouldn't have happened but <@!${userID}> and <@!${userToDuelID}> have different number of game records.`;
+				let userIssue = (user1WinRecords.length > user2WinRecords.length) ? `<@!${userToDuelID}>` : `<@!${userID}>`;
+				let message = `${userIssue} needs to be added to my system before they can duel!`;//`ERROR: <@!${userID}> and <@!${userToDuelID}> have different number of game records. One or both of them need to be added to my system.`;
 				return SendMessageToServer(message, channelID);
 			}
 			var i;
@@ -718,7 +723,7 @@ function DuelUser(userID, channelID, userToDuel)
 				numGames = numGames + 1
 			}
 
-				var message = `Through a total of **${numGames}** battles...\n <@!${userID}> won **${user1VictoryPoints}** battles and <@!${userToDuelID}> won **${user2VictoryPoints}** battles...\n`
+				var message = `Through a total of **${numGames}** battles...\n <@!${userID}> won **${user1VictoryPoints}** battles, <@!${userToDuelID}> won **${user2VictoryPoints}** battles, and tying in **${numOfTies}** battles...\n`
 				if (user1VictoryPoints > user2VictoryPoints) {
 					message = message + `<@!${userID}> wins!`;
 				}
@@ -1312,6 +1317,36 @@ function ResetUserWins(userID, channelID, userToReset)
 	});
 }
 
+//Admin Only. Force to users to duel.
+function Fight(userID, channelID, user1, user2)
+{
+	var user1ID;
+	
+	if (!auth.adminIDs.includes(userID) && userID != auth.headAdminID) {
+		let message = `<@!${userID}> can\'t tell me what to do!`;
+		return SendMessageToServer(message, channelID);
+	}
+	
+	if (user1 == null) {
+		let message = 'Missing user1. Format: **!fight {@user1Mention} {@user2Mention}**';
+		return SendMessageToServer(message, channelID);
+	}
+	
+	if (!CheckMentionFormat(user1)) {
+		let message = 'Improper user1 format. Format: **!fight {@user1Mention} {@user2Mention}**';
+		return SendMessageToServer(message, channelID);
+	}
+	
+	if (!CheckMentionFormat(user2)) {
+		let message = 'Improper user2 format. Format: **!fight {@user1Mention} {@user2Mention}**';
+		return SendMessageToServer(message, channelID);
+	}
+	
+	user1ID = GetIDFromMention(user1);
+	
+	DuelUser(user1ID, channelID, user2);	//user2 ID parsing gets taken care of in the Duel function so we don't have to do it here
+	
+}
 
 /* UTILITY FUNCTIONS */
 
