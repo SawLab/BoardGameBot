@@ -3,6 +3,7 @@ var logger = require('winston');
 var auth = require('./auth.json');
 var sqlite3 = require('sqlite3').verbose();
 const fs = require('fs');
+const cron = require('node-cron');
 
 const MAX_GAME_NAME_LENGTH = 32;
 const MAX_NICKNAME_LENGTH = 10;
@@ -31,11 +32,12 @@ bot.on('ready', function (evt) {
     logger.info('Connected');
     logger.info('Logged in as: ');
     logger.info(bot.username + ' - (' + bot.id + ')');
+	console.log('Starting cron jobs...');
+	StartCronJobs();
 });
 
 bot.on('guildMemberAdd', function (member)
 {
-	var mentionNewUser = member.username + '#' + member.discriminator;
 	let message = `Welcome <@!${member.id}>! Type !addme to get started or !help to see all my commands.`;
 	SendMessageToServer(message, auth.channelID);
 });
@@ -238,7 +240,7 @@ function TotalWinsLeaderboard(channelID) {
 function AddWin(userID, channelID, gameNickname)
 {
 	if (gameNickname == null) {
-		let message = "The nickname for the game must be specfied. Type !viewgames to see a list of games and their nicknames. Format: !win {nickname}";
+		let message = "The nickname for the game must be specfied. Type **!viewgames** to see a list of games and their nicknames. Format: **!win {nickname}**";
 		SendMessageToServer(message, channelID);
 		return;
 	}
@@ -246,6 +248,7 @@ function AddWin(userID, channelID, gameNickname)
 	db.serialize(function() {
 		var totalWins;
 		var gameWins;
+		var weeklyWins;
 		var gameName;
 		var gameID;
 		
@@ -253,7 +256,7 @@ function AddWin(userID, channelID, gameNickname)
 		db.get(sql, [gameNickname], function(err, row) {
 			if (err) { return console.error(err.message); }
 			if (row == null) {
-				let message = `The nickname **${gameNickname}** does not exist. Type !viewgames for a list of valid nicknames.**`;
+				let message = `The nickname **${gameNickname}** does not exist. Type **!viewgames** for a list of valid nicknames.**`;
 				return SendMessageToServer(message, channelID);
 			}
 			gameID = row.gameID;
@@ -263,7 +266,7 @@ function AddWin(userID, channelID, gameNickname)
 			db.get(sql, [userID, gameID], function(err, row) {
 				if (err) { return console.error(err.message); }
 				if (row == null) {
-					let message = `<@!${userID}> is not in my system! Type !addme so you can start tracking your wins.`
+					let message = `<@!${userID}> is not in my system! Type **!addme** so you can start tracking your wins.`
 					return SendMessageToServer(message, channelID);
 				}
 				gameWins = row.wins;
@@ -279,12 +282,20 @@ function AddWin(userID, channelID, gameNickname)
 						
 						totalWins = row.totalWins; 
 						
-						sql = `UPDATE Users SET totalWins = ? Where userID = ?`; //set the total wins to the sum
-						db.run(sql, [totalWins, userID], function(err) {
-							if (err) { return console.error(err.message); }
-							let message = `Congratulations <@!${userID}>! You now have **${gameWins}** wins in **${gameName}** and your total wins are now **${totalWins}**.`;
-							SendMessageToServer(message, channelID);
-						});
+						sql = `SELECT weeklyWins FROM Users WHERE userID = ?`;
+						db.get(sql,[userID], function(err, row) {
+							if (err) { console.error(err.message); }
+							weeklyWins = row.weeklyWins;
+							weeklyWins = weeklyWins + 1;
+							
+							
+							sql = `UPDATE Users SET totalWins = ?, weeklyWins = ? Where userID = ?`; //set the total wins to the sum
+							db.run(sql, [totalWins, weeklyWins, userID], function(err) {
+								if (err) { return console.error(err.message); }
+								let message = `Congratulations <@!${userID}>! You now have **${gameWins}** wins in **${gameName}** and your total wins are now **${totalWins}**.`;
+								SendMessageToServer(message, channelID);
+							});
+						});	
 					});
 				});
 			});
@@ -296,7 +307,7 @@ function AddWin(userID, channelID, gameNickname)
 function AddLoss(userID, channelID, gameNickname)
 {
 	if (gameNickname == null) {
-		let message = "The nickname for the game must be specfied. Type !viewgames to see a list of games and their nicknames. Format: !loss {nickname}";
+		let message = "The nickname for the game must be specfied. Type **!viewgames** to see a list of games and their nicknames. Format: **!loss {nickname}**";
 		SendMessageToServer(message, channelID);
 		return;
 	}
@@ -342,11 +353,19 @@ function AddLoss(userID, channelID, gameNickname)
 						
 						totalWins = row.totalWins; 
 						
-						sql = `UPDATE Users SET totalWins = ? Where userID = ?`; //set the total wins to the sum
-						db.run(sql, [totalWins, userID], function(err) {
-							if (err) { return console.error(err.message); }
-							let message = `<@!${userID}> now has **${gameWins}** wins in **${gameName}** and their total wins have been reduced to **${totalWins}**.`;
-							SendMessageToServer(message, channelID);
+						sql = `SELECT weeklyWins FROM Users WHERE userID = ?`;
+						db.get(sql,[userID], function(err, row) {
+							if (err) { console.error(err.message); }
+							weeklyWins = row.weeklyWins;
+							weeklyWins = weeklyWins - 1; //Decrement their weekly wins
+							weeklyWins = (weeklyWins < 0)  ? 0 : weeklyWins;	//if weeklyWins is less than 0 set weeklyWins to 0
+						
+							sql = `UPDATE Users SET totalWins = ?, weeklyWins = ? Where userID = ?`; //set the total wins to the sum
+							db.run(sql, [totalWins, weeklyWins, userID], function(err) {
+								if (err) { return console.error(err.message); }
+								let message = `<@!${userID}> now has **${gameWins}** wins in **${gameName}** and their total wins have been reduced to **${totalWins}**.`;
+								SendMessageToServer(message, channelID);
+							});
 						});
 					});
 				});
@@ -1375,4 +1394,41 @@ function GetIDFromMention(userMention)
 	userMention = userMention.replace('!', ''); //check if they are using a nickame
     id = userMention.substring(2, userMention.length - 1);
 	return id;
+}
+
+function StartCronJobs()
+{
+	//Weekly wins award message
+	cron.schedule("0 0 17 * * SUN", function() {
+		console.log('starting weekly wins cron job');
+		var mostWeeklyWins;
+		let sql = `SELECT userID, weeklyWins FROM Users ORDER BY weeklyWins DESC`;
+		db.all(sql, [], function(err, rows) {
+			if (err) { return console.error(err.message) }
+			
+			if (rows.length != 0 && rows[0].weeklyWins > 0) { //only do something if there are users in the system and if there is at least 1 weekly win
+				mostWeeklyWins = rows[0].weeklyWins;
+				let message = `Congratulations to:`;
+				
+				var i;
+				for(i = 0; i < rows.length; i++) {
+					if (rows[i].weeklyWins === mostWeeklyWins) { 	//add the user with the highest score and any ties to the message
+						message = message + ` <@!${rows[i].userID}>`;
+					}
+					else { break; }	//No need to iterate through the rest of the list once we've found everyone with the highest score.
+				}
+				message = message + ` for having the most wins with **${mostWeeklyWins}** wins in the past week! :trophy:`;
+				SendMessageToServer(message, auth.channelID);
+				
+				//Reset weekly wins back to 0
+				sql = `UPDATE USERS SET weeklyWins = 0`;
+				db.run(sql, [], function(err) {
+					if (err) { return console.error(err.message); }
+					console.log('Weekly wins reset to 0');
+				});
+			}
+			else { console.log('No winners to congratulate...'); }
+			
+		});
+	});
 }
