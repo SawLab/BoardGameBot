@@ -731,7 +731,7 @@ function AddAdmin(userID, channelID, newAdmin)
 					return SendMessageToServer(message, channelID);		
 				}
 				auth.adminIDs = authJsonObj.adminIDs;			//set the currently running data so that admin privilges take into effect immidiately.
-				let message = `<@!${userID}> has successfully been added as an admin!`;
+				let message = `<@!${adminToAddID}> has successfully been added as an admin!`;
 				SendMessageToServer(message, channelID);
 			});
 		});
@@ -1160,55 +1160,7 @@ function ViewAllWinsByGame(channelID, gameNickname)
 	});
 }
 
-/* CRUD FUNCTIONS */
-
-//Returns the gameID corresponding to given nickname
-function GetGameIdByNickname(nickname)
-{
-	var ID;
-	
-	let sql = `SELECT gameID FROM Games WHERE gameNickname = ? COLLATE NOCASE`;
-	db.get(sql, [nickname], function(err, row) {
-		if (err) {
-			return console.error(err.message);
-		}
-		ID = row.gameID;
-	});
-	return ID;
-}
-
-//Returns a list of all userIDs
-function GetAllUserIDs ()
-{
-	var IDs;
-	let sql = `SELECT userID FROM Users`
-		db.all(sql, [], function(err, rows) {
-			if (err) {
-				return console.error(err.message);
-			}
-			rows.forEach(function(row) {				
-				IDs = rows;
-			});
-		});
-	return IDs;
-}
-
-//Returns a list of all existing gameIDs
-function GetAllGameIDs()
-{
-	var IDs = [];
-	let sql = `SELECT gameID from Games`;
-		 db.all(sql, [], function(err, rows) {
-			if (err) {
-				return console.error(err.message);
-			}	
-			rows.forEach(function(row) {
-				IDs.push(row.gameID);
-			});	
-			
-			return IDs;
-		});			
-}
+/* UTILITY FUNCTIONS */
 
 //Retrieves the full user object from any user in the channel
 function GetUserByID(userID)
