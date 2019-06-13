@@ -143,6 +143,9 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 			case 'viewadmins':
 				ViewAdmins(channelID);
 				break;
+			case 'headadmin':
+				ViewHeadAdminCommands(userID, channelID);
+				break;
 			default:
 				IncorrectCommand(channelID);
 				break;
@@ -604,26 +607,42 @@ function ViewGames(channelID)
 	});
 }
 
-//Prints list of commands only the admin can use
+//Prints list of commands only the admins can use
 function ViewAdminCommands(channelID)
 {
 	let message = 'Admin Commands:'
 				+ '\n\t\t\t\t\t\t\t\t\t**!addgame {New_Game_Name} {nickname}** - adds a game to the game list and begins tracking wins for all users'
-				+ '\n\t\t\t\t\t\t\t\t\t**!deletegame {nickname}** - deletes an existing game from the list and its recorded wins'
 				+ '\n\t\t\t\t\t\t\t\t\t**!updategamename {nickname} {New_Game_Name}** - updates the name of an existing game'
 				+ '\n\t\t\t\t\t\t\t\t\t**!updatenickname {oldnickname} {newnickname}** - updates the nickname of an existing game'
 				+ '\n\t\t\t\t\t\t\t\t\t**!givewin {@userMention}{nickname}** - add a win from the selected user'
 				+ '\n\t\t\t\t\t\t\t\t\t**!giveloss {@userMention} {nickname}** - remove a win from the selected user'
 				+ '\n\t\t\t\t\t\t\t\t\t**!adduser {@userMention}** - adds the specified user to the database'
-				+ '\n\t\t\t\t\t\t\t\t\t**!deleteuser {@userMention}** - delete the specified user from the database'
 				+ '\n\t\t\t\t\t\t\t\t\t**!resetuser {@userMention}** - resets all the specified user\'s wins back to 0'
-				+ '\n\t\t\t\t\t\t\t\t\t**!deleteallusers** - DELETES ALL USERS FROM THE DATABASE. BIG NO NO'
 				+ '\n\t\t\t\t\t\t\t\t\t**!viewusers** - displays all recorded users in my system'
 				+ '\n\t\t\t\t\t\t\t\t\t**!viewwins** - displays all recorded users total wins'
-				+ '\n\t\t\t\t\t\t\t\t\t**!viewwins {nickname}** - displays all recorded users wins for the specified game';
+				+ '\n\t\t\t\t\t\t\t\t\t**!viewwins {nickname}** - displays all recorded users wins for the specified game'
 				+ '\n\t\t\t\t\t\t\t\t\t**!headadmin** - displays head admin commands';
 	SendMessageToServer(message, channelID);
 }
+
+//Prints list of commands only the head admin can use
+function ViewHeadAdminCommands(userID, channelID)
+{
+	
+	if (!auth.adminIDs.includes(userID) && userID != auth.headAdminID) {
+		let message = `<@!${userID}> can\'t tell me what to do!`;
+		return SendMessageToServer(message, channelID);
+	}
+	
+	let message = 'Head Admin Commands:'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deletegame {nickname}** - deletes an existing game from the list and its recorded wins'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deleteuser {@userMention}** - delete the specified user from the database'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deleteallusers** - DELETES ALL USERS FROM THE DATABASE. BIG NO NO'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!addadmin {@userMention}** - gives the specified user admin permissions'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deleteadmin {@userMention}** - removes the specified user\'s admin permissions';
+	SendMessageToServer(message, channelID);
+}
+
 //Prints a list of the head admin and all other added admins
 function ViewAdmins(channelID)
 {
