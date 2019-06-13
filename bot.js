@@ -137,6 +137,12 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 			case 'deleteadmin':
 				DeleteAdmin(userID, channelID, cmd1);
 				break;
+			case 'resetuser':
+				ResetUserWins(userID, channelID, cmd1);
+				break;
+			case 'viewadmins':
+				ViewAdmins(channelID);
+				break;
 			default:
 				IncorrectCommand(channelID);
 				break;
@@ -449,9 +455,10 @@ function Help(channelID)
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!myscore** - view your total wins'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!myscore {nickname}** - view your total wins for the specified game'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!viewgames** - view list of all games and their nicknames'
-				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!namechange** - enter this command if you\'ve changed your Discord username after adding yourself to my system'
+				//+ '\n\t\t\t\t\t\t\t\t\t\t\t**!namechange** - enter this command if you\'ve changed your Discord username after adding yourself to my system' --unnecessary now that we've implemented user mentions
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!source** - view my source code'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!admin** - view admin commands'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!viewadmins** - view a list of all admins'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!help** - prints the help screen';
 	SendMessageToServer(message, channelID);
 }
@@ -482,7 +489,7 @@ function ViewMyGameScore(userID, channelID, game)
 	var gameName;
 	var gameID;
 	
-	let sql = `SELECT gameID, gameName FROM Games WHERE gameNickname = ? COLLATE NOCASE`;	//Check if the game exists, if so grab its full name
+	let sql = `SELECT gameID, gameName FROM Games WHERE gameNickname = ? COLLATE NOCASE`;	//Check if the game exists, if so grab its full name and gameID
 	db.get(sql, [game], function(err, row) {
 		console.log(row);
 		if (row == null) {
@@ -497,6 +504,10 @@ function ViewMyGameScore(userID, channelID, game)
 		
 	    sql = `SELECT wins FROM WinTable WHERE userID = ? AND gameID = ?`;
 		db.get(sql, [userID, gameID], function(err, row) {
+			if (row == null) {
+				let message = `<@!${userID}> does not exist in my system! Type **!addme** to be added.`;
+				return SendMessageToServer(message, channelID);
+			}
 			let message = `<@!${userID}> has **${row.wins}** wins for **${gameName}**.`;
 			SendMessageToServer(message, channelID);
 		});
@@ -510,6 +521,10 @@ function ViewMyTotalScore(userID, channelID)
 	db.get(sql, [userID], function(err, row) {
 		if(err)	{
 			return console.error(err.message);
+		}
+		if (row == null) {
+			let message = `<@!${userID}> does not exist in my system! Type **!addme** to be added.`;
+			return SendMessageToServer(message, channelID);
 		}
 		let message = `Total wins for <@!${userID}> is: **${row.wins}**`;
 		SendMessageToServer(message, channelID);
@@ -601,13 +616,28 @@ function ViewAdminCommands(channelID)
 				+ '\n\t\t\t\t\t\t\t\t\t**!giveloss {@userMention} {nickname}** - remove a win from the selected user'
 				+ '\n\t\t\t\t\t\t\t\t\t**!adduser {@userMention}** - adds the specified user to the database'
 				+ '\n\t\t\t\t\t\t\t\t\t**!deleteuser {@userMention}** - delete the specified user from the database'
+				+ '\n\t\t\t\t\t\t\t\t\t**!resetuser {@userMention}** - resets all the specified user\'s wins back to 0'
 				+ '\n\t\t\t\t\t\t\t\t\t**!deleteallusers** - DELETES ALL USERS FROM THE DATABASE. BIG NO NO'
 				+ '\n\t\t\t\t\t\t\t\t\t**!viewusers** - displays all recorded users in my system'
 				+ '\n\t\t\t\t\t\t\t\t\t**!viewwins** - displays all recorded users total wins'
 				+ '\n\t\t\t\t\t\t\t\t\t**!viewwins {nickname}** - displays all recorded users wins for the specified game';
+				+ '\n\t\t\t\t\t\t\t\t\t**!headadmin** - displays head admin commands';
 	SendMessageToServer(message, channelID);
 }
-
+//Prints a list of the head admin and all other added admins
+function ViewAdmins(channelID)
+{
+	var headAdminID = auth.headAdminID;
+	var adminIDs = auth.adminIDs;
+	
+	let message = `__**Head Admin:**__\n<@!${headAdminID}>\n\n__**Admins**__\n`;
+	
+	adminIDs.forEach(function(id) {
+		message = `${message}<@!${id}>\n`;
+	});
+	
+	SendMessageToServer(message, channelID);
+}
 
 /* HEAD ADMIN PRIVILEGES BELOW THIS POINT */
 
@@ -653,12 +683,7 @@ function DeleteAdmin(userID, channelID, adminToDelete)
 		return SendMessageToServer(message, channelID);
 	}
 	adminToDeleteID = GetIDFromMention(adminToDelete);
-	
-	if (GetUserByID(adminToDeleteID) == null) {
-		let message = `${adminToDelete} is not a user in this server.`
-		return SendMessageToServer(message, channelID);
-	}
-	
+
 		fs.readFile('./auth.json', 'utf8', (err, jsonString) => {
 			if (err) { return console.error(err.message); }
 			
@@ -805,7 +830,7 @@ function GiveUserWin(userID, channelID, userToEdit, game)
 {
 	var userToEditID;
 	
-	if (!auth.adminIDs.includes(userID)  && userID != auth.headAdminID) {
+	if (!auth.adminIDs.includes(userID) && userID != auth.headAdminID) {
 		let message = `<@!${userID}> can\'t tell me what to do!`;
 		return SendMessageToServer(message, channelID);
 	}
@@ -838,7 +863,7 @@ function GiveUserWin(userID, channelID, userToEdit, game)
 //Admin only. Add Game to the Games table, add the new game to the User table as a column.
 function AddGame(userID, channelID, gameName, nickName)
 {
-	if (!auth.adminIDs.includes(userID)  && userID != auth.headAdminID) {
+	if (!auth.adminIDs.includes(userID) && userID != auth.headAdminID) {
 		let message = `<@!${userID}> can\'t tell me what to do!`;
 		return SendMessageToServer(message, channelID);
 	}
@@ -922,7 +947,7 @@ function GiveUserLoss(userID, channelID, userToEdit, game)
 {
 	var userToEditID;
 	
-	if (!auth.adminIDs.includes(userID)  && userID != auth.headAdminID) {
+	if (!auth.adminIDs.includes(userID) && userID != auth.headAdminID) {
 		let message = `<@!${userID}> can\'t tell me what to do!`;
 		return SendMessageToServer(message, channelID);
 	}
@@ -958,7 +983,7 @@ function AddUser(userID, channelID, userToAdd)
 	var userToAddID;
 	var userToAddObject;
 	
-	if (!auth.adminIDs.includes(userID)  && userID != auth.headAdminID) {
+	if (!auth.adminIDs.includes(userID) && userID != auth.headAdminID) {
 		let message = `<@!${userID}> can\'t tell me what to do!`;
 		return SendMessageToServer(message, channelID);
 	}
@@ -984,7 +1009,7 @@ function UpdateGameName(userID, channelID, nickName, newGameName)
 {
 	var oldGameName;
 	
-	if (!auth.adminIDs.includes(userID)  && userID != auth.headAdminID) {
+	if (!auth.adminIDs.includes(userID) && userID != auth.headAdminID) {
 		let message = `<@!${userID}> can\'t tell me what to do!`;
 		return SendMessageToServer(message, channelID);
 	}
@@ -1033,7 +1058,7 @@ function UpdateGameName(userID, channelID, nickName, newGameName)
 //Admin only. Updates the nickname of an existing game
 function UpdateNickname(userID, channelID, oldNickName, newNickName)
 {
-	if (!auth.adminIDs.includes(userID)  && userID != auth.headAdminID) {
+	if (!auth.adminIDs.includes(userID) && userID != auth.headAdminID) {
 		let message = `<@!${userID}> can\'t tell me what to do!`;
 		return SendMessageToServer(message, channelID);
 	}
@@ -1076,7 +1101,7 @@ function UpdateNickname(userID, channelID, oldNickName, newNickName)
 //Admin only. Prints all users in the system
 function ViewAllUsers(userID, channelID)
 {
-	if (!auth.adminIDs.includes(userID)  && userID != auth.headAdminID) {
+	if (!auth.adminIDs.includes(userID) && userID != auth.headAdminID) {
 		let message = `<@!${userID}> can\'t tell me what to do!`;
 		return SendMessageToServer(message, channelID);
 	}
@@ -1097,7 +1122,7 @@ function ViewAllUsers(userID, channelID)
 //Admin only. Decides which view all function to use based on user input
 function ViewAllWins(userID, channelID, gameNickname)
 {
-	if (!auth.adminIDs.includes(userID)  && userID != auth.headAdminID) {
+	if (!auth.adminIDs.includes(userID) && userID != auth.headAdminID) {
 		let message = `<@!${userID}> can\'t tell me what to do!`;
 		return SendMessageToServer(message, channelID);
 	}
@@ -1159,6 +1184,43 @@ function ViewAllWinsByGame(channelID, gameNickname)
 		});
 	});
 }
+
+//Admin only. Resets the specified user's wins back to 0
+function ResetUserWins(userID, channelID, userToReset) 
+{
+	var userToResetID;
+	
+	if (!auth.adminIDs.includes(userID) && userID != auth.headAdminID) {
+		let message = `<@!${userID}> can\'t tell me what to do!`;
+		return SendMessageToServer(message, channelID);
+	}
+	
+	if (userToReset == null) {
+		let message = `Missing user to reset. Format: **!resetuser {@userMention}**`;
+		return SendMessageToServer(message, channelID);
+	}
+	
+	if (!CheckMentionFormat(userToReset)) {
+		let message = `Incorrect user format. Format: **!resetuser {@userMention}**`;
+		return SendMessageToServer(message, channelID);
+	}
+	
+	userToResetID = GetIDFromMention(userToReset);
+	
+	let sql = `UPDATE Users SET totalWins = 0 WHERE userID = ?`;
+	db.run(sql, [userToResetID], function(err) {
+		if (err) { return console.error(err.message); }
+		
+		sql = `UPDATE WinTable SET wins = 0 WHERE userID = ?`;
+		db.run(sql, [userToResetID], function(err) {
+			if (err) { return SendMessageToServer(message, channelID); }
+			
+			let message = `<@!${userToResetID}> has had all their wins reset.`;
+			return SendMessageToServer(message, channelID);
+		});
+	});
+}
+
 
 /* UTILITY FUNCTIONS */
 
