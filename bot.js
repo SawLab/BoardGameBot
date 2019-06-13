@@ -43,8 +43,6 @@ bot.on('guildMemberAdd', function (member)
 bot.on('message', function (user, userID, channelID, message, evt) {
 	// Our bot needs to know if it will execute a command
     // It will listen for messages that will start with `!`
-	console.log(message);
-	console.log(auth.adminIDs);
     if (message.substring(0, 1) == '!') {
 		
 		if (channelID in bot.directMessages) {	//block direct message commands
@@ -145,6 +143,9 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 				break;
 			case 'headadmin':
 				ViewHeadAdminCommands(userID, channelID);
+				break;
+			case 'duel':
+				DuelUser(userID, channelID, cmd1);
 				break;
 			default:
 				IncorrectCommand(channelID);
@@ -278,7 +279,7 @@ function AddWin(userID, channelID, gameNickname)
 						sql = `UPDATE Users SET totalWins = ? Where userID = ?`; //set the total wins to the sum
 						db.run(sql, [totalWins, userID], function(err) {
 							if (err) { return console.error(err.message); }
-							let message = `Congratulations <@!${userID}> You now have **${gameWins}** wins in **${gameName}** and your total wins are now **${totalWins}**.`;
+							let message = `Congratulations <@!${userID}>! You now have **${gameWins}** wins in **${gameName}** and your total wins are now **${totalWins}**.`;
 							SendMessageToServer(message, channelID);
 						});
 					});
@@ -458,6 +459,7 @@ function Help(channelID)
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!myscore** - view your total wins'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!myscore {nickname}** - view your total wins for the specified game'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!viewgames** - view list of all games and their nicknames'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!duel {@userMention}** - duel the selected user. Most wins per game wins!'
 				//+ '\n\t\t\t\t\t\t\t\t\t\t\t**!namechange** - enter this command if you\'ve changed your Discord username after adding yourself to my system' --unnecessary now that we've implemented user mentions
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!source** - view my source code'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!admin** - view admin commands'
@@ -494,7 +496,6 @@ function ViewMyGameScore(userID, channelID, game)
 	
 	let sql = `SELECT gameID, gameName FROM Games WHERE gameNickname = ? COLLATE NOCASE`;	//Check if the game exists, if so grab its full name and gameID
 	db.get(sql, [game], function(err, row) {
-		console.log(row);
 		if (row == null) {
 			let message = `**${game}** is an invalid nickname. Type !viewgames for a list of valid nicknames.`;
 			return SendMessageToServer(message, channelID);
@@ -658,6 +659,80 @@ function ViewAdmins(channelID)
 	SendMessageToServer(message, channelID);
 }
 
+//Duels the user with the seleted user. The user with the most wins per game wins.
+function DuelUser(userID, channelID, userToDuel)
+{
+	var userToDuelID;
+	
+	var user1WinRecords;
+	var user2WinRecords;
+	
+	var user1VictoryPoints = 0;
+	var user2VictoryPoints = 0;
+	var numOfTies = 0;
+	
+	var numGames = 0;
+	
+	if (userToDuel == null) {
+		let message = `Missing user to duel. Format: **!duel {@userMention}**`;
+		return SendMessageToServer(message, channelID);
+	}
+	
+	if (!CheckMentionFormat(userToDuel)) {
+		let message = `Incorrect user format. Format: **!duel {@userMention}**`;
+		return SendMessageToServer(message, channelID);
+	}
+	
+	userToDuelID = GetIDFromMention(userToDuel);
+	
+
+	let sql = `SELECT gameID, wins FROM WinTable WHERE userID = ? ORDER BY gameID`;
+	db.all(sql, [userID], function(err, rows) {
+		if (err) { return console.error(err.message); }
+		user1WinRecords = rows;
+		
+		sql = `SELECT gameID, wins FROM WinTable WHERE userID = ? ORDER BY gameID`;
+		db.all(sql, [userToDuelID], function(err, rows) {
+			if (err) { return console.error(err.message); }
+			user2WinRecords = rows;
+			
+			if (user1WinRecords.length != user2WinRecords.length) {
+				let message = `This shouldn't have happened but <@!${userID}> and <@!${userToDuelID}> have different number of game records.`;
+				return SendMessageToServer(message, channelID);
+			}
+			var i;
+			//start battle
+			for (i = 0; i < user1WinRecords.length; i++) {
+				if (user1WinRecords[i].wins === 0 && user2WinRecords[i].wins === 0) {
+					continue; //no battle do nothing
+				}
+				else if (user1WinRecords[i].wins > user2WinRecords[i].wins) {
+					user1VictoryPoints = user1VictoryPoints + 1;	//user1 wins!
+				}
+				else if (user1WinRecords[i].wins < user2WinRecords[i].wins) {
+					user2VictoryPoints = user2VictoryPoints + 1;	//user2 wins!
+				}
+				else {
+					numOfTies = numOfTies + 1; //tie
+				}
+				numGames = numGames + 1
+			}
+
+				var message = `Through a total of **${numGames}** battles...\n <@!${userID}> won **${user1VictoryPoints}** battles and <@!${userToDuelID}> won **${user2VictoryPoints}** battles...\n`
+				if (user1VictoryPoints > user2VictoryPoints) {
+					message = message + `<@!${userID}> wins!`;
+				}
+				else if (user1VictoryPoints < user2VictoryPoints) {
+					message = message + `<@!${userToDuelID}> wins!`;
+				}
+				else {
+					message = message + `<@!${userID}> and <@!${userToDuelID}> have tied!`
+				}
+		
+				SendMessageToServer(message, channelID);		
+		});	
+	});
+}
 /* HEAD ADMIN PRIVILEGES BELOW THIS POINT */
 
 //Head Admin only. Delete another user from the system
@@ -671,12 +746,12 @@ function DeleteUser(userID, channelID, userToDelete)
 	}
 	
 	if (userToDelete == null) {
-		let message = 'Missing user to delete. Format: !deleteuser {username#1234}';
+		let message = 'Missing user to delete. Format: **!deleteuser {@userMention}**';
 		return SendMessageToServer(message, channelID);
 	}
 	
 	if(!CheckMentionFormat(userToDelete)) {
-		let message = 'Incorect user format. Format: !deleteuser {@userMention}';
+		let message = 'Incorect user format. Format: **!deleteuser {@userMention}**';
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -723,9 +798,6 @@ function DeleteAdmin(userID, channelID, adminToDelete)
 					let message = 'ERROR: Could not delete admin from file.'
 					return SendMessageToServer(message, channelID);		
 				}
-				
-				//let authIDIndex = auth.adminIDs.indexOf(adminToDelete);
-				//console.log('index', authIDIndex);
 				auth.adminIDs = authJsonObj.adminIDs;
 				let message = `<@!${adminToDeleteID}> has been successfully removed as an admin!`;
 				SendMessageToServer(message, channelID);		
