@@ -222,7 +222,6 @@ function GameWinsLeaderboard(channelID, game)
 				
 				for(i = 0; i < rows.length; i++) {
 					if (rows[i].wins === firstScore ) {	//add all users that share the top score
-						console.log(rows[i]);
 						firstWinners.push(rows[i]);
 					}
 					else {
