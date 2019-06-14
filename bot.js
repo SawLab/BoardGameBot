@@ -580,7 +580,7 @@ function RemoveMe(userID, channelID)
 //Pings the bot
 function Ping(channelID)
 {
-	let message = 'Pong';
+	let message = 'Pong :ping_pong:';
 	SendMessageToServer(message, channelID);
 }
 
@@ -728,24 +728,6 @@ function ViewAdminCommands(channelID)
 	SendMessageToServer(message, channelID);
 }
 
-//Prints list of commands only the head admin can use
-function ViewHeadAdminCommands(userID, channelID)
-{
-	
-	if (!auth.adminIDs.includes(userID) && userID != auth.headAdminID) {
-		let message = `<@!${userID}> can\'t tell me what to do!`;
-		return SendMessageToServer(message, channelID);
-	}
-	
-	let message = 'Head Admin Commands:'
-				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deletegame {nickname}** - deletes an existing game from the list and its recorded wins'
-				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deleteuser {@userMention}** - delete the specified user from the database'
-				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deleteallusers** - DELETES ALL USERS FROM THE DATABASE. BIG NO NO'
-				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!addadmin {@userMention}** - gives the specified user admin permissions'
-				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deleteadmin {@userMention}** - removes the specified user\'s admin permissions';
-	SendMessageToServer(message, channelID);
-}
-
 //Prints a list of the head admin and all other added admins
 function ViewAdmins(channelID)
 {
@@ -836,6 +818,7 @@ function DuelUser(userID, channelID, userToDuel)
 		});	
 	});
 }
+
 /* HEAD ADMIN PRIVILEGES BELOW THIS POINT */
 
 //Head Admin only. Delete another user from the system
@@ -1018,6 +1001,24 @@ function DeleteUsers(userID, channelID)
 
 
 /* ADMIN PRIVILEGES BELOW THIS POINT */
+
+//Admin only. Prints list of commands only the head admin can use
+function ViewHeadAdminCommands(userID, channelID)
+{
+	
+	if (!auth.adminIDs.includes(userID) && userID != auth.headAdminID) {
+		let message = `<@!${userID}> can\'t tell me what to do!`;
+		return SendMessageToServer(message, channelID);
+	}
+	
+	let message = 'Head Admin Commands:'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deletegame {nickname}** - deletes an existing game from the list and its recorded wins'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deleteuser {@userMention}** - delete the specified user from the database'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deleteallusers** - DELETES ALL USERS FROM THE DATABASE. BIG NO NO'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!addadmin {@userMention}** - gives the specified user admin permissions'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deleteadmin {@userMention}** - removes the specified user\'s admin permissions';
+	SendMessageToServer(message, channelID);
+}
 
 //Admin only. Adds a player win to the specified user and game.
 function GiveUserWin(userID, channelID, userToEdit, game)
@@ -1475,6 +1476,7 @@ function GetIDFromMention(userMention)
 	return id;
 }
 
+//Starts the automated cron-jobs
 function StartCronJobs()
 {
 	//Weekly wins award message
