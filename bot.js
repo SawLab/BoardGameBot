@@ -38,8 +38,20 @@ bot.on('ready', function (evt) {
 
 bot.on('guildMemberAdd', function (member)
 {
-	let message = `Welcome <@!${member.id}>! Type !addme to get started or !help to see all my commands.`;
+	let message = `Welcome <@!${member.id}>! Type **!addme** to get started or **!help** to see all my commands.`;
 	SendMessageToServer(message, auth.channelID);
+});
+
+bot.on('guildMemberRemove', (member, evt) => {
+	//Automatically remove users from the database when they leave the channel.
+	 new Promise((resolve,reject) => {
+		let message = `<@!${member.id}> has left the channel. Deleting their user data...`;
+		SendMessageToServer(message, auth.channelID);
+		resolve();
+	})
+	.then(() => {
+		RemoveMe(member.id, auth.channelID);
+	});
 });
 
 bot.on('message', function (user, userID, channelID, message, evt) {
@@ -72,7 +84,7 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 				Leaderboard(channelID, cmd1);
 				break;				
 			case 'addme':
-				AddMe(user, userID, channelID);
+				AddMe(userID, channelID);
 				break;
 			case 'removeme':
 				RemoveMe(userID, channelID);
@@ -170,73 +182,186 @@ function Leaderboard(channelID, game)
 	}
 }
 
-//Prints the top 5 players for the selected game
+//Prints the top 3 scores and all players that have those scores for the selected game
 function GameWinsLeaderboard(channelID, game)
 {
 	var gameName;
 	var gameID;
 	
-	db.serialize(function() {
-		let sql = `SELECT gameID, gameName FROM Games WHERE gameNickname = ? COLLATE NOCASE`;
-		db.get(sql, [game], function(err, row) { 				//First check to make sure the game exists and grab its full name.
-			if(err) {
-				return console.error(err.message);
-			}
-			if (row == null) {
-				let message = "Invalid nickname. Type !viewgames for a list of valid nicknames.";
-				return SendMessageToServer(message, channelID);
-			}
-			gameName = row.gameName;
-			gameID = row.gameID;
-			
-			sql = `SELECT userID, wins FROM WinTable WHERE gameID = ? ORDER BY wins DESC`
-				db.all(sql,[gameID],
-				function(error, rows) {
-					if (error) {
-						console.error(error.message);
-					}
-					var messageToSend = `__**Top ${gameName} winners:**__\n`;
-					var i = 1;
-					var numToPrint = rows.length < 6 ? rows.length + 1 : 6; //print the top 5 scores; if less than 5 users print the same number as the number users
-					
-					rows.forEach(row => {
-						if (i < numToPrint) {
-							messageToSend = `${messageToSend}${i}: <@!${row.userID}> - ${row.wins}\n`;
-							i++;
-						}
-					});
-					
-					SendMessageToServer(messageToSend, channelID);	
-			});
-		});		
-	});
-}
-
-//Prints the top 5 users. Prints less than 5 if there are less than 5 users.
-function TotalWinsLeaderboard(channelID) {
-	db.serialize(function() {
-		db.all("SELECT userID id, totalWins wins FROM Users ORDER BY totalWins DESC",
-			(error, rows) => {
-				if (error) {
-					console.error(error.message);
+	let sql = `SELECT gameID, gameName FROM Games WHERE gameNickname = ? COLLATE NOCASE`;
+	db.get(sql, [game], function(err, row) { 				//First check to make sure the game exists and grab its full name.
+		if(err) {
+			return console.error(err.message);
+		}
+		if (row == null) {
+			let message = "Invalid nickname. Type **!viewgames** for a list of valid nicknames.";
+			return SendMessageToServer(message, channelID);
+		}
+		gameName = row.gameName;
+		gameID = row.gameID;
+		
+		sql = `SELECT userID, wins FROM WinTable WHERE gameID = ? ORDER BY wins DESC`
+			db.all(sql,[gameID],
+			function(err, rows) {
+				if (err) { return console.error(error.message); }
+				if (rows == null) {
+					let message = 'There are no users in my system to show a leaderboard of.';
+					return SendMessageToServer(message, channelID);	
 				}
-				var messageToSend = "__**Top winners across all games:**__\n";
-				var i = 1;
-				var numToPrint = rows.length < 6 ? rows.length + 1 : 6; //print the top 5 scores; if less than 5 users print the same number as the number users
 				
-				rows.forEach(row => {
-					if (i < numToPrint) {
-					messageToSend = `${messageToSend}${i}: <@!${row.id}> - ${row.wins}\n`;
-						i++;
+				var messageToSend = `__**Top ${gameName} winners:**__ \n`;
+				var i;
+				
+				var firstScore = rows[0].wins; //Top score will always be in the first element and we've confirmed there is at least one element in rows
+				var secondScore;
+				var thirdScore;
+				
+				var firstWinners = [];
+				var secondWinners = [];
+				var thirdWinners = [];
+				
+				for(i = 0; i < rows.length; i++) {
+					if (rows[i].wins === firstScore ) {	//add all users that share the top score
+						console.log(rows[i]);
+						firstWinners.push(rows[i]);
 					}
-				});
+					else {
+						secondScore = rows[i].wins;	//set the second place score and stop iterating to start search for second place
+						break; 
+					}	
+				}
+				
+				for (; i < rows.length; i++) {
+					if (rows[i].wins === secondScore) {	//add all users that share the second place score
+						secondWinners.push(rows[i]);
+					}
+					else {
+						thirdScore = rows[i].wins;	//set the third place wins and stop iterating to start search for third place
+						break;
+					}
+				}
+				
+				for (; i < rows.length; i++) {
+					if (rows[i].wins === thirdScore) { //add all users that share the third place score
+						thirdWinners.push(rows[i]);
+					}
+					else {
+						break;	//stop iterating. No more users we need to find.
+					}
+				}
+				
+				messageToSend = messageToSend + `:first_place: `;
+				if(firstWinners.length > 0 && firstScore > 0) {;	//append any first place winners to message. Ignore if the score is 0
+					firstWinners.forEach(function(winner) {
+						messageToSend = `${messageToSend} <@!${winner.userID}> `;				
+					});
+					messageToSend = messageToSend + ` - ${firstScore}`;
+				}
+						
+				messageToSend = messageToSend + `\n:second_place: `; 
+				if (secondWinners.length > 0 && secondScore > 0) { //append any third place winners to message. Ignore if the score is 0
+					secondWinners.forEach(function(winner) {
+						messageToSend = `${messageToSend} <@!${winner.userID}> `;
+					});
+					messageToSend = messageToSend + ` - ${secondScore}`;
+				}
+				
+				messageToSend = messageToSend + `\n:third_place: `;
+				if (thirdWinners.length > 0 && thirdScore > 0) { //append any third place winners to message. Ignore if the score is 0
+					thirdWinners.forEach(function(winner) {
+						messageToSend = `${messageToSend} <@!${winner.userID}> `;
+					});
+					messageToSend = messageToSend + ` - ${thirdScore}`;
+				}
 				
 				SendMessageToServer(messageToSend, channelID);	
 		});
-	});
+	});		
 }
 
-//Decrements the user's specified game wins by 1 then sets their total wins to the sum of all their game wins.
+//Prints the top 3 scores and all players that have those scores for the selected game
+function TotalWinsLeaderboard(channelID) {
+		
+	let sql = `SELECT userID, totalWins wins FROM Users ORDER BY wins DESC`
+	db.all(sql,[],
+	function(err, rows) {
+		if (err) { return console.error(error.message); }
+		if (rows == null) {
+			let message = 'There are no users in my system to show a leaderboard of.';
+			return SendMessageToServer(message, channelID);	
+		}
+		
+		var messageToSend = `__**Top winners across all games:**__ \n`;
+		var i;
+		
+		var firstScore = rows[0].wins; //Top score will always be in the first element and we've confirmed there is at least one element in rows
+		var secondScore;
+		var thirdScore;
+		
+		var firstWinners = [];
+		var secondWinners = [];
+		var thirdWinners = [];
+		
+		for(i = 0; i < rows.length; i++) {
+			if (rows[i].wins === firstScore ) {	//add all users that share the top score
+				console.log(rows[i]);
+				firstWinners.push(rows[i]);
+			}
+			else {
+				secondScore = rows[i].wins;	//set the second place score and stop iterating to start search for second place
+				break; 
+			}	
+		}
+		
+		for (; i < rows.length; i++) {
+			if (rows[i].wins === secondScore) {	//add all users that share the second place score
+				secondWinners.push(rows[i]);
+			}
+			else {
+				thirdScore = rows[i].wins;	//set the third place wins and stop iterating to start search for third place
+				break;
+			}
+		}
+		
+		for (; i < rows.length; i++) {
+			if (rows[i].wins === thirdScore) { //add all users that share the third place score
+				thirdWinners.push(rows[i]);
+			}
+			else {
+				break;	//stop iterating. No more users we need to find.
+			}
+		}
+		
+		messageToSend = messageToSend + `:first_place: `;
+		if(firstWinners.length > 0 && firstScore > 0) {;	//append any first place winners to message. Ignore if the score is 0
+			firstWinners.forEach(function(winner) {
+				messageToSend = `${messageToSend} <@!${winner.userID}> `;				
+			});
+			messageToSend = messageToSend + ` - ${firstScore}`;
+		}
+				
+		messageToSend = messageToSend + `\n:second_place: `; 
+		if (secondWinners.length > 0 && secondScore > 0) { //append any third place winners to message. Ignore if the score is 0
+			secondWinners.forEach(function(winner) {
+				messageToSend = `${messageToSend} <@!${winner.userID}> `;
+			});
+			messageToSend = messageToSend + ` - ${secondScore}`;
+		}
+		
+		messageToSend = messageToSend + `\n:third_place: `;
+		if (thirdWinners.length > 0 && thirdScore > 0) { //append any third place winners to message. Ignore if the score is 0
+			thirdWinners.forEach(function(winner) {
+				messageToSend = `${messageToSend} <@!${winner.userID}> `;
+			});
+			messageToSend = messageToSend + ` - ${thirdScore}`;
+		}
+		
+		SendMessageToServer(messageToSend, channelID);	
+});
+
+}
+
+//Increments the user's specified game wins by 1 then sets their total wins to the sum of all their game wins.
 function AddWin(userID, channelID, gameNickname)
 {
 	if (gameNickname == null) {
@@ -374,23 +499,20 @@ function AddLoss(userID, channelID, gameNickname)
 	});
 }
 
-
 //Adds the user to the database. If user already exists, let the user know.
-function AddMe(user, userID, channelID)
+function AddMe(userID, channelID)
 {	
 	db.serialize(function() {
 		
-		var userDiscriminator = GetUserByID(userID).discriminator;
-		var nick = bot.servers[bot.channels[channelID].guild_id].members[userID].nick
 		var gameIDs = [];
 	
-		let sql = `INSERT INTO Users(userID, userName, userDiscriminator, userNickname) VALUES(?, ?, ?, ?)`;
-		db.run(sql, [userID, user, userDiscriminator, nick], function(err) {
+		let sql = `INSERT INTO Users(userID) VALUES(?)`;
+		db.run(sql, [userID], function(err) {
 			if(err)
 			{
 				if(err.message.includes("SQLITE_CONSTRAINT"))
 				{
-					let message = `<@!${userID}> already exist in my system!`;
+					let message = `<@!${userID}> already exists in my system!`;
 					SendMessageToServer(message, channelID);
 				}
 				return console.error(err.message);
@@ -415,7 +537,7 @@ function AddMe(user, userID, channelID)
 						}						
 					});
 				});
-				let message = `<@!${userID}> is now ready to start tracking their wins! :game_die: `;
+				let message = `<@!${userID}> is now ready to start tracking their wins! :thumbsup:`;
 				SendMessageToServer(message, channelID);
 			});	
 		});	 									
@@ -425,10 +547,10 @@ function AddMe(user, userID, channelID)
 //Allows the player to remove themeselves from the database
 function RemoveMe(userID, channelID)
 {
-	let sql = `SELECT userName FROM Users WHERE userID = ?`;	//first checks to make sure the user is in the system
+	let sql = `SELECT totalWins FROM Users WHERE userID = ?`;	//first checks to make sure the user is in the system
 	db.get(sql, [userID], function(err,row) {
 		if (row == null) {
-			let message = `<@!${userID}> must first type !addme before they can delete themself!`
+			let message = `<@!${userID}> must first type **!addme** before they can be deleted!`
 			return SendMessageToServer(message, channelID);
 		}
 		if (err) {
@@ -465,7 +587,7 @@ function Ping(channelID)
 //Prints message if command is not recognized.
 function IncorrectCommand(channelID)
 {
-	let message = 'Command not recognized. Type !help for a list of approved commands.';
+	let message = 'Command not recognized. Type **!help** for a list of approved commands. :x:';
 	SendMessageToServer(message, channelID);
 }
 
@@ -474,15 +596,14 @@ function Help(channelID)
 {
 	let message = 'Approved Commands:'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!addme** - adds you to the database so you can start tracking your wins!'
-				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!leaderboard** - prints the top 5 users across all games'
-				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!leaderboard {nickname}** - prints the top 5 users for the specified game'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!leaderboard** - prints the top 3 users across all games'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!leaderboard {nickname}** - prints the top 3 users for the specified game'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!win {nickname}** - adds a win to your account for the specified game'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!loss {nickname}** - removes a win from your account for the specified game'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!myscore** - view your total wins'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!myscore {nickname}** - view your total wins for the specified game'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!viewgames** - view list of all games and their nicknames'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!duel {@userMention}** - duel the selected user. Most wins per game wins!'
-				//+ '\n\t\t\t\t\t\t\t\t\t\t\t**!namechange** - enter this command if you\'ve changed your Discord username after adding yourself to my system' --unnecessary now that we've implemented user mentions
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!source** - view my source code'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!admin** - view admin commands'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!viewadmins** - view a list of all admins'
@@ -554,48 +675,6 @@ function ViewMyTotalScore(userID, channelID)
 		}
 		let message = `Total wins for <@!${userID}> is: **${row.wins}**`;
 		SendMessageToServer(message, channelID);
-	});
-}
-
-//Allows the user to change their name in the database if their Discord username is changed.
-function ChangeUserName(userID, channelID)
-{
-	db.serialize(function() {
-		var user = GetUserByID(userID);
-		var newName = user.username;
-		var newDiscriminator = user.discriminator;
-		var newNickName = bot.servers[bot.channels[channelID].guild_id].members[userID].nick
-		
-		let sql = "SELECT userName name, userDiscriminator discriminator, userNickname FROM Users WHERE userID = ?";
-		
-		db.get(sql, [userID], function(err, row) {
-			if(err) {
-				return console.error(err.message);
-			}
-
-			if(row == null) {	//if row does not exist, prompt user to add themeselves into the database
-				let message = "I don't recognize you <@!${userID}>! Type !addme to be added to my database.";
-				return SendMessageToServer(message, channelID);
-			}
-			var prevName = row.name;
-			var prevDiscriminator = row.discriminator;
-			var prevNickname = row.userNickname
-			
-			if(prevName === newName && prevDiscriminator === newDiscriminator && prevNickname == newNickName) {		//if name has not changed: return. No need to update.
-				let message = "You are up to date in my system. No change needed!";
-				SendMessageToServer(message, channelID);
-				return;
-			}
-			
-			sql = "UPDATE Users SET userName = ?, userDiscriminator = ?, userNickname = ? WHERE userID = ?";
-			db.run(sql, [newName, newDiscriminator, newNickName, userID], function(err) {
-				if(err) {
-					return console.error(err.message);
-				}
-				let message = `Name successfully changed from **${prevName}#${prevDiscriminator}** to **${newName}#${newDiscriminator}**`;
-				SendMessageToServer(message, channelID);
-			});
-		});
 	});
 }
 
@@ -742,7 +821,7 @@ function DuelUser(userID, channelID, userToDuel)
 				numGames = numGames + 1
 			}
 
-				var message = `Through a total of **${numGames}** battles...\n <@!${userID}> won **${user1VictoryPoints}** battles, <@!${userToDuelID}> won **${user2VictoryPoints}** battles, and tying in **${numOfTies}** battles...\n`
+				var message = `Through a total of **${numGames}** battles... :crossed_swords: \n <@!${userID}> won **${user1VictoryPoints}** battles, <@!${userToDuelID}> won **${user2VictoryPoints}** battles, and tying in **${numOfTies}** battles...\n`
 				if (user1VictoryPoints > user2VictoryPoints) {
 					message = message + `<@!${userID}> wins!`;
 				}
@@ -780,7 +859,7 @@ function DeleteUser(userID, channelID, userToDelete)
 	}
 	
 	userToDeleteID = GetIDFromMention(userToDelete);
-	
+
 	RemoveMe(userToDeleteID, channelID);
 }
 
@@ -871,7 +950,7 @@ function AddAdmin(userID, channelID, newAdmin)
 					return SendMessageToServer(message, channelID);		
 				}
 				auth.adminIDs = authJsonObj.adminIDs;			//set the currently running data so that admin privilges take into effect immidiately.
-				let message = `<@!${adminToAddID}> has successfully been added as an admin!`;
+				let message = `<@!${adminToAddID}> has successfully been added as an admin! :crown:`;
 				SendMessageToServer(message, channelID);
 			});
 		});
@@ -1049,7 +1128,7 @@ function AddGame(userID, channelID, gameName, nickName)
 							}								
 						});	
 					});
-				let message = `**${formattedGameName}** with nickname **${nickName}** has been added to the game list and is ready to start tracking wins!`;
+				let message = `**${formattedGameName}** with nickname **${nickName}** has been added to the game list and is ready to start tracking wins! :game_die:`;
 				SendMessageToServer(message, channelID);	
 				});
 			});
@@ -1116,7 +1195,7 @@ function AddUser(userID, channelID, userToAdd)
 		return SendMessageToServer(message, channelID);
 	}
 	
-	AddMe(userToAddObject.username, userToAddID, channelID);
+	AddMe(userToAddID, channelID);
 }
 
 //Admin only. Update the gameName of an existing game in the database
@@ -1400,7 +1479,7 @@ function StartCronJobs()
 {
 	//Weekly wins award message
 	cron.schedule("0 0 17 * * SUN", function() {
-		console.log('starting weekly wins cron job');
+		console.log('Starting top weekly wins cron job...');
 		var mostWeeklyWins;
 		let sql = `SELECT userID, weeklyWins FROM Users ORDER BY weeklyWins DESC`;
 		db.all(sql, [], function(err, rows) {
@@ -1419,8 +1498,8 @@ function StartCronJobs()
 				}
 				message = message + ` for having the most wins with **${mostWeeklyWins}** wins in the past week! :trophy:`;
 				SendMessageToServer(message, auth.channelID);
-				
-				//Reset weekly wins back to 0
+				console.log('Weekly award message sent to server.');
+				//Reset everyone's weekly wins back to 0
 				sql = `UPDATE USERS SET weeklyWins = 0`;
 				db.run(sql, [], function(err) {
 					if (err) { return console.error(err.message); }
