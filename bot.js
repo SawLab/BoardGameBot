@@ -4,6 +4,7 @@ var auth = require('./auth.json');
 var sqlite3 = require('sqlite3').verbose();
 const fs = require('fs');
 const cron = require('node-cron');
+let shell = require("shelljs");
 
 const MAX_GAME_NAME_LENGTH = 32;
 const MAX_NICKNAME_LENGTH = 10;
@@ -163,6 +164,9 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 				break;
 			case 'fight':
 				Fight(userID, channelID, cmd1, cmd2);
+				break;
+			case 'restoredatabase':
+				RestoreDatabase(userID, channelID, cmd1);
 				break;
 			default:
 				IncorrectCommand(channelID);
@@ -998,6 +1002,56 @@ function DeleteUsers(userID, channelID)
 	});
 }
 
+//Head Admin Only. Restores Database using the specified backup
+function RestoreDatabase(userID, channelID, num) {
+	if (userID != auth.headAdminID) {
+		let message = `<@!${userID}> is not the head admin! :rage: `
+		return SendMessageToServer(message, channelID);
+	}
+	if (num == null) {
+		let message = `Missing backup specification. Format: **!restoredatabase {backupNumber}** Backup number can be 1, 3, or 7.`; 
+		return SendMessageToServer(message, channelID);
+	}
+	
+	if (num !== '1' && num !== '3' && num !== 7 ) {
+		let message = `**${num}** is not a permitted input. Format: **!restoredatabase {backupNumber}** Backup number can be 1, 3, or 7.`;
+		return SendMessageToServer(message, channelID);
+	}
+
+	 if (shell.exec("copy /y BoardGameBot.db Old.db").code !== 0) { //Copy curren database so we dont risk losing it
+		let message = `${num} day database restoration failed. Could not copy database.`;
+		SendMessageToServer(message, channelID);
+		shell.exit(1);
+	}
+	else {
+		db.close(); //close the database connection so we can modify it
+		
+		 if (shell.exec("del BoardGameBot.db").code !== 0) {
+			let message = `${num} day database restoration failed. Could not delete database.`;
+			SendMessageToServer(message, channelID);
+			shell.exit(1);
+		} 
+		else {
+			
+			if (shell.exec(`sqlite3 BoardGameBot.db < ${num}dayBackup.bak`).code !== 0) {
+			let message = `${num} day database restoration failed. Insert backup data.`;
+			SendMessageToServer(message, channelID);
+			shell.exit(1);
+		}
+			db = new sqlite3.Database('./BoardGameBot.db', (err) => {
+				if (err)
+				{
+					return console.error(err.message);
+				}
+				console.log('1 Day Backup restoration complete.');
+				let message = `Database restored to ${num} day ago.`;
+				return SendMessageToServer(message, channelID);
+			});
+			
+		}
+	} 
+
+}
 
 /* ADMIN PRIVILEGES BELOW THIS POINT */
 
@@ -1006,7 +1060,7 @@ function ViewHeadAdminCommands(userID, channelID)
 {
 	
 	if (!auth.adminIDs.includes(userID) && userID != auth.headAdminID) {
-		let message = `<@!${userID}> can\'t tell me what to do!`;
+		let message = `<@!${userID}> can\'t tell me what to do! :rage:`;
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -1015,7 +1069,8 @@ function ViewHeadAdminCommands(userID, channelID)
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deleteuser {@userMention}** - delete the specified user from the database'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deleteallusers** - DELETES ALL USERS FROM THE DATABASE. BIG NO NO'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!addadmin {@userMention}** - gives the specified user admin permissions'
-				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deleteadmin {@userMention}** - removes the specified user\'s admin permissions';
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deleteadmin {@userMention}** - removes the specified user\'s admin permissions'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!restoredatabase {num}** - Restores to the database back up from 1, 3 or 7 days ago';
 	SendMessageToServer(message, channelID);
 }
 
@@ -1401,7 +1456,7 @@ function ResetUserWins(userID, channelID, userToReset)
 	
 	userToResetID = GetIDFromMention(userToReset);
 	
-	let sql = `UPDATE Users SET totalWins = 0 WHERE userID = ?`;
+	let sql = `UPDATE Users SET totalWins = 0 weeklyWins = 0 WHERE userID = ?`;
 	db.run(sql, [userToResetID], function(err) {
 		if (err) { return console.error(err.message); }
 		
@@ -1415,7 +1470,7 @@ function ResetUserWins(userID, channelID, userToReset)
 	});
 }
 
-//Admin Only. Force to users to duel.
+//Admin Only. Force two users to duel.
 function Fight(userID, channelID, user1, user2)
 {
 	var user1ID;
@@ -1510,5 +1565,17 @@ function StartCronJobs()
 			else { console.log('No winners to congratulate...'); }
 			
 		});
+	});
+	
+	//1 day backup cron-job
+	cron.schedule('* * * * *', function() {
+		console.log('Running 24 hour backup cron-job...');
+		if (shell.exec("sqlite3 BoardGameBot.db .dump > 1dayBackup.bak").code !== 0) {
+			console.log('Backup failed.');
+			shell.exit(1);
+		}
+		else {
+			shell.echo('24 hour backup complete');
+		}
 	});
 }
