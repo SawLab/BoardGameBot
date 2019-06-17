@@ -59,10 +59,12 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 	// Our bot needs to know if it will execute a command
     // It will listen for messages that will start with `!`
 	if(message.toLowerCase().includes('good bot')) {
-		SendMessageToServer(':blush:', channelID);
+		if (message.toLowerCase().includes('not')) { SendMessageToServer(':cry:', channelID); }
+		else { SendMessageToServer(':blush:', channelID); }
 	}
 	if(message.toLowerCase().includes('bad bot')) {
-		SendMessageToServer(':cry:', channelID);
+		if (message.toLowerCase().includes('not')) { SendMessageToServer(':blush:', channelID); }
+		else { SendMessageToServer(':cry:', channelID); }
 	}
 	
     if (message.substring(0, 1) == '!') {
@@ -395,6 +397,7 @@ function AddWin(userID, channelID, gameNickname)
 		var totalWins;
 		var gameWins;
 		var weeklyWins;
+		var monthlyWins;
 		var gameName;
 		var gameID;
 		
@@ -428,15 +431,16 @@ function AddWin(userID, channelID, gameNickname)
 						
 						totalWins = row.totalWins; 
 						
-						sql = `SELECT weeklyWins FROM Users WHERE userID = ?`;
+						sql = `SELECT weeklyWins, monthlyWins FROM Users WHERE userID = ?`;
 						db.get(sql,[userID], function(err, row) {
 							if (err) { console.error(err.message); }
-							weeklyWins = row.weeklyWins;
-							weeklyWins = weeklyWins + 1;
 							
+							weeklyWins = row.weeklyWins + 1;
 							
-							sql = `UPDATE Users SET totalWins = ?, weeklyWins = ? Where userID = ?`; //set the total wins to the sum
-							db.run(sql, [totalWins, weeklyWins, userID], function(err) {
+							monthlyWins = row.monthlyWins + 1;
+							
+							sql = `UPDATE Users SET totalWins = ?, weeklyWins = ?, monthlyWins = ? Where userID = ?`; //set the total wins to the sum
+							db.run(sql, [totalWins, weeklyWins, monthlyWins, userID], function(err) {
 								if (err) { return console.error(err.message); }
 								let message = `Congratulations <@!${userID}>! You now have **${gameWins}** wins in **${gameName}** and your total wins are now **${totalWins}**. :gem:`;
 								SendMessageToServer(message, channelID);
@@ -463,6 +467,8 @@ function AddLoss(userID, channelID, gameNickname)
 		var gameWins;
 		var gameName;
 		var gameID;
+		var weeklyWins;
+		var monthlyWins;
 		
 		let sql = `SELECT gameID, gameName FROM Games WHERE gameNickname = ? COLLATE NOCASE`; //Get the gameID and gameName
 		db.get(sql, [gameNickname], function(err, row) {
@@ -499,15 +505,17 @@ function AddLoss(userID, channelID, gameNickname)
 						
 						totalWins = row.totalWins; 
 						
-						sql = `SELECT weeklyWins FROM Users WHERE userID = ?`;
+						sql = `SELECT weeklyWins, monthlyWins FROM Users WHERE userID = ?`;
 						db.get(sql,[userID], function(err, row) {
 							if (err) { console.error(err.message); }
-							weeklyWins = row.weeklyWins;
-							weeklyWins = weeklyWins - 1; //Decrement their weekly wins
+							weeklyWins = row.weeklyWins - 1; //Decrement their weekly wins
 							weeklyWins = (weeklyWins < 0)  ? 0 : weeklyWins;	//if weeklyWins is less than 0 set weeklyWins to 0
+							
+							monthlyWins = row.monthlyWins - 1; //Decrement their monthly wins
+							monthlyWins = (monthlyWins < 0)  ? 0 : monthlyWins;	//if monthlyWins is less than 0 set monthlyWins to 0
 						
-							sql = `UPDATE Users SET totalWins = ?, weeklyWins = ? Where userID = ?`; //set the total wins to the sum
-							db.run(sql, [totalWins, weeklyWins, userID], function(err) {
+							sql = `UPDATE Users SET totalWins = ?, weeklyWins = ?, monthlyWins = ? Where userID = ?`; //set the total wins to the sum
+							db.run(sql, [totalWins, weeklyWins, monthlyWins, userID], function(err) {
 								if (err) { return console.error(err.message); }
 								let message = `<@!${userID}> now has **${gameWins}** wins in **${gameName}** and their total wins have been reduced to **${totalWins}**. :bomb: `;
 								SendMessageToServer(message, channelID);
@@ -825,12 +833,13 @@ function DuelUser(userID, channelID, userToDuel)
 				numGames = numGames + 1
 			}
 				
-			sql = `SELECT a.totalWins totalWins1, a.weeklyWins weeklyWins1, b.totalWins totalWins2, b.weeklyWins weeklyWins2 FROM Users a, Users b WHERE a.userID = ? AND b.userID = ?`;
+			sql = `SELECT a.totalWins totalWins1, a.weeklyWins weeklyWins1, a.monthlyWins monthlyWins1, b.totalWins totalWins2, b.weeklyWins weeklyWins2, b.monthlyWins monthlyWins2 FROM Users a, Users b WHERE a.userID = ? AND b.userID = ?`;
 			db.get(sql, [userID, userToDuelID], function(err, row) {
 				if (err) { return console.error(err.message); }
 				
 				var message = `Through a total of **${numGames}** battles... :crossed_swords: \n <@!${userID}> won **${user1VictoryPoints}** battles, <@!${userToDuelID}> won **${user2VictoryPoints}** battles, and tying in **${numOfTies}** battles...\n`
 				
+				//Add in total, weekly, monthly win bonuses
 				if (row.totalWins1 > row.totalWins2) {
 					user1VictoryPoints = user1VictoryPoints + 1;
 					message = `${message}<@!${userID}> has the total wins advantage!\n`;
@@ -847,6 +856,15 @@ function DuelUser(userID, channelID, userToDuel)
 				else if (row.weeklyWins1 < row.weeklyWins2) {
 					user2VictoryPoints = user2VictoryPoints + 1;
 					message = `${message}<@!${userToDuelID}> has the weekly wins advantage!\n`;
+				}
+				
+				if (row.monthlyWins1 > row.monthlyWins2) {
+					user1VictoryPoints = user1VictoryPoints + 1;
+					message = `${message}<@!${userID}> has the monthly wins advantage!\n`;
+				}
+				else if (row.monthlyWins1 < row.monthlyWins2) {
+					user2VictoryPoints = user2VictoryPoints + 1;
+					message = `${message}<@!${userToDuelID}> has the monthly wins advantage!\n`;
 				}
 				
 				
@@ -1105,7 +1123,7 @@ function ResetAllUsers(userID, channelID)
 		if (err) {
 			return console.error(err.message);
 		}
-		sql = `UPDATE Users SET totalWins = 0, weeklyWins = 0`;	//Set total and weekly wins to 0
+		sql = `UPDATE Users SET totalWins = 0, weeklyWins = 0, monthlyWins = 0`;	//Set total and weekly wins to 0
 		db.run(sql, [], function(err) {
 			if (err) {
 				return console.error(err.message);
@@ -1682,7 +1700,7 @@ function ResetUserWins(userID, channelID, userToReset)
 	
 	userToResetID = GetIDFromMention(userToReset);
 	
-	let sql = `UPDATE Users SET totalWins = 0 weeklyWins = 0 WHERE userID = ?`;
+	let sql = `UPDATE Users SET totalWins = 0 weeklyWins = 0, monthlyWins = 0 WHERE userID = ?`;
 	db.run(sql, [userToResetID], function(err) {
 		if (err) { return console.error(err.message); }
 		
@@ -1760,7 +1778,7 @@ function GetIDFromMention(userMention)
 function StartCronJobs()
 {
 	//Weekly wins award message
-	cron.schedule("0 0 17 * * SUN", function() {
+	cron.schedule("0 17 * * SUN", function() {
 		console.log('Starting top weekly wins cron job...');
 		var mostWeeklyWins;
 		let sql = `SELECT userID, weeklyWins FROM Users ORDER BY weeklyWins DESC`;
@@ -1788,7 +1806,41 @@ function StartCronJobs()
 					console.log('Weekly wins reset to 0');
 				});
 			}
-			else { console.log('No winners to congratulate...'); }
+			else { console.log('No weekly winners to congratulate...'); }
+			
+		});
+	}); 
+	
+	//Monthly wins award message
+	cron.schedule("0 17 1 * *", function() {
+		console.log('Starting top monthly wins cron job...');
+		var mostMonthlyWins;
+		let sql = `SELECT userID, monthlyWins FROM Users ORDER BY monthlyWins DESC`;
+		db.all(sql, [], function(err, rows) {
+			if (err) { return console.error(err.message) }
+			
+			if (rows.length != 0 && rows[0].monthlyWins > 0) { //only do something if there are users in the system and if there is at least 1 monthly win
+				mostMonthlyWins = rows[0].monthlyWins;
+				let message = `Congratulations to:`;
+				
+				var i;
+				for(i = 0; i < rows.length; i++) {
+					if (rows[i].monthlyWins === mostMonthlyWins) { 	//add the user with the highest score and any ties to the message
+						message = message + ` <@!${rows[i].userID}>`;
+					}
+					else { break; }	//No need to iterate through the rest of the list once we've found everyone with the highest score.
+				}
+				message = message + ` for having the most wins with **${mostMonthlyWins}** wins in the past month! :trophy:`;
+				SendMessageToServer(message, auth.channelID);
+				console.log('Monthly award message sent to server.');
+				//Reset everyone's monthly wins back to 0
+				sql = `UPDATE USERS SET monthlyWins = 0`;
+				db.run(sql, [], function(err) {
+					if (err) { return console.error(err.message); }
+					console.log('Monthly wins reset to 0');
+				});
+			}
+			else { console.log('No monthly winners to congratulate...'); }
 			
 		});
 	});
