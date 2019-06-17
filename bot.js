@@ -168,6 +168,9 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 			case 'restoredatabase':
 				RestoreDatabase(userID, channelID, cmd1);
 				break;
+			case 'undorestore':
+				UndoDatabaseRestore(userID, channelID);
+				break;
 			default:
 				IncorrectCommand(channelID);
 				break;
@@ -719,7 +722,7 @@ function ViewAdminCommands(channelID)
 				+ '\n\t\t\t\t\t\t\t\t\t**!addgame {New_Game_Name} {nickname}** - adds a game to the game list and begins tracking wins for all users'
 				+ '\n\t\t\t\t\t\t\t\t\t**!updategamename {nickname} {New_Game_Name}** - updates the name of an existing game'
 				+ '\n\t\t\t\t\t\t\t\t\t**!updatenickname {oldnickname} {newnickname}** - updates the nickname of an existing game'
-				+ '\n\t\t\t\t\t\t\t\t\t**!givewin {@userMention}{nickname}** - add a win from the selected user'
+				+ '\n\t\t\t\t\t\t\t\t\t**!givewin {@userMention}{nickname}** - add a win to the selected user'
 				+ '\n\t\t\t\t\t\t\t\t\t**!giveloss {@userMention} {nickname}** - remove a win from the selected user'
 				+ '\n\t\t\t\t\t\t\t\t\t**!adduser {@userMention}** - force two users to duel'
 				+ '\n\t\t\t\t\t\t\t\t\t**!fight {@user1Mention} {@user2Mention}** - adds the specified user to the database'
@@ -1013,12 +1016,12 @@ function RestoreDatabase(userID, channelID, num) {
 		return SendMessageToServer(message, channelID);
 	}
 	
-	if (num !== '1' && num !== '3' && num !== 7 ) {
+	if (num !== '1' && num !== '3' && num !== '7' ) {
 		let message = `**${num}** is not a permitted input. Format: **!restoredatabase {backupNumber}** Backup number can be 1, 3, or 7.`;
 		return SendMessageToServer(message, channelID);
 	}
 
-	 if (shell.exec("copy /y BoardGameBot.db Old.db").code !== 0) { //Copy curren database so we dont risk losing it
+	 if (shell.exec("sqlite3 BoardGameBot.db .dump > Old.bak").code !== 0) { //Copy current database so we dont risk losing it
 		let message = `${num} day database restoration failed. Could not copy database.`;
 		SendMessageToServer(message, channelID);
 		shell.exit(1);
@@ -1034,23 +1037,90 @@ function RestoreDatabase(userID, channelID, num) {
 		else {
 			
 			if (shell.exec(`sqlite3 BoardGameBot.db < ${num}dayBackup.bak`).code !== 0) {
-			let message = `${num} day database restoration failed. Insert backup data.`;
+			let message = `${num} day database restoration failed. Could not insert backup data.`;
 			SendMessageToServer(message, channelID);
 			shell.exit(1);
 		}
-			db = new sqlite3.Database('./BoardGameBot.db', (err) => {
+			db = new sqlite3.Database('./BoardGameBot.db', (err) => { //reconnect to the restored database
 				if (err)
 				{
 					return console.error(err.message);
 				}
 				console.log('1 Day Backup restoration complete.');
-				let message = `Database restored to ${num} day ago.`;
+				let message = `Database restored to ${num} days ago.`;
 				return SendMessageToServer(message, channelID);
 			});
 			
 		}
 	} 
 
+}
+
+//Undos the most recent database restoration
+function UndoDatabaseRestore(userID, channelID) {
+	fs.stat('Old.bak', function(err, stat) {
+		console.log(1);
+    if(err == null) {
+        if (shell.exec("sqlite3 BoardGameBot.db .dump > Undo.bak").code !== 0) { //Copy current database so we dont risk losing it
+			let message = `${num} days database restoration failed. Could not copy database.`;
+			SendMessageToServer(message, channelID);
+			shell.exit(1);
+		}
+		else {
+			console.log(2);
+			db.close(); //close the database so we don't have any issues deleting it and reconnecting
+			if (shell.exec("del BoardGameBot.db").code !== 0) { //delete the current database
+				let message = `Undo database restoration failed. Could not delete database.`;
+				SendMessageToServer(message, channelID);
+				shell.exit(1);
+			}
+			else {
+				console.log(3)
+				if (shell.exec("sqlite3 BoardGameBot.db < Old.bak").code !== 0) { //Insert the old data into an empty database
+					let message = `Undo database restoration failed. Could not insert old database data into the new one.`;
+					SendMessageToServer(message, channelID);
+					shell.exit(1);
+				}
+				else {
+					console.log(4);
+					db = new sqlite3.Database('./BoardGameBot.db', (err) => { //reconnect to the restored database
+						if (err)
+						{
+							return console.error(err.message);
+						}
+						console.log(5);
+						if (shell.exec("del Old.bak").code !== 0) { //Delete the old database so we can make the previous database we just reverted from the old database
+							let message = `Undo database restoration failed. Could not delete old database.`;
+							SendMessageToServer(message, channelID);
+							shell.exit(1);
+						}
+						else {
+							if (shell.exec("rename Undo.bak Old.bak").code !== 0) { //Rename the undone database to Old.bak so that we can revert the undo
+							let message = `Undo database restoration failed. Could not rename the backup.`;
+							SendMessageToServer(message, channelID);
+							shell.exit(1);
+						}
+							else {
+								console.log(6);
+								console.log('Undo database restore complete.');
+								let message = `Database restoration has been undone.`;
+								return SendMessageToServer(message, channelID);
+							}
+						}
+					});
+				}
+			}
+		}
+		
+    } else if(err.code === 'ENOENT') {
+        // file does not exist
+        console.log('Old.db does not exist!');
+		let message = 'There has been no restoration to undo!';
+		return SendMessageToServer(message, channelID);
+    } else {
+        console.log('Datbase Undo Restoration error: ', err.code);
+    }
+});
 }
 
 /* ADMIN PRIVILEGES BELOW THIS POINT */
@@ -1567,8 +1637,8 @@ function StartCronJobs()
 		});
 	});
 	
-	//1 day backup cron-job
-	cron.schedule('* * * * *', function() {
+	//1 day backup cron-job. Run each day at 00:40.
+	cron.schedule('40 */24 * * *', function() {
 		console.log('Running 24 hour backup cron-job...');
 		if (shell.exec("sqlite3 BoardGameBot.db .dump > 1dayBackup.bak").code !== 0) {
 			console.log('Backup failed.');
@@ -1576,6 +1646,30 @@ function StartCronJobs()
 		}
 		else {
 			shell.echo('24 hour backup complete');
+		}
+	});
+	
+	//3 day backup cron-job. Backup database every 72 hours at 00:59
+	cron.schedule('59 */72 * * *', function() {
+		console.log('Running 3 day backup cron-job...');
+		if (shell.exec("sqlite3 BoardGameBot.db .dump > 3dayBackup.bak").code !== 0) {
+			console.log('Backup failed.');
+			shell.exit(1);
+		}
+		else {
+			shell.echo('3 day backup complete');
+		}
+	});
+	
+	//7 day backup cron-job. Backup database every 168 days at 00:30.
+	cron.schedule('30 */168 * * *', function() {
+		console.log('Running 7 day backup cron-job...');
+		if (shell.exec("sqlite3 BoardGameBot.db .dump > 7dayBackup.bak").code !== 0) {
+			console.log('Backup failed.');
+			shell.exit(1);
+		}
+		else {
+			shell.echo('7 day backup complete');
 		}
 	});
 }
