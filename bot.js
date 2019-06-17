@@ -593,7 +593,7 @@ function RemoveMe(userID, channelID)
 
 //Pings the bot
 function Ping(channelID)
-{
+{					
 	let message = 'Pong :ping_pong:';
 	SendMessageToServer(message, channelID);
 }
@@ -966,29 +966,45 @@ function DeleteGame(userID, channelID, gameNickname)
 	}
 	
 	db.serialize( function() {
-		let sql = 'SELECT gameID, gameName FROM Games Where gameNickname = ? COLLATE NOCASE'
+		let sql = `SELECT gameID, gameName FROM Games Where gameNickname = ? COLLATE NOCASE`
 		db.get(sql, [gameNickname], function(err, row) {
-			if (err) {
-				return console.error(err.message);
-			}
+			if (err) { return console.error(err.message); }
 			if (row == null) {
 				let message = `Game with nickname **${gameNickname}** does not exist in my system`;
 				return SendMessageToServer(message, channelID);
 			}	
 			gameName = row.gameName;
 			gameID = row.gameID;
-			sql = 'DELETE FROM Games Where gameID = ?'
+			sql = `DELETE FROM Games Where gameID = ?`
 			db.run(sql, [gameID], function(err) {
 				if (err) {
 					return console.error(err.message);
 				}
-				sql = 'DELETE FROM WinTable Where gameID = ?'
+				sql = `DELETE FROM WinTable Where gameID = ?` //delete all rows of the game from the game table
 				db.run(sql, [gameID], function(err) {
-					if (err) {
-						return console.error(err.message);
-					}
-					let message = `**${gameName}** has been deleted from the database along with its recorded wins.`;
-					SendMessageToServer(message, channelID);
+					if (err) { return console.error(err.message); }
+					
+					sql = `SELECT userID, SUM(wins) totalWins FROM WinTable GROUP BY userID` //Sum up everyone's new total wins in case wins were deleted
+					db.all(sql, [], function(err, rows) {
+						if (err) { return console.error(err.message); }
+						if (rows.length === 0) { //last game was deleted so everyone's totalWins should be 0
+							sql = `UPDATE USERS SET totalWins = 0`;
+							db.run(sql, [], function(err) {
+								if (err) { return console.error(err.message); }
+							});
+						}
+						else {
+							rows.forEach(function(row) {
+								sql = `UPDATE USERS SET totalWins = ? WHERE userID = ?`; //Set each user's totalWins to the new sum
+								db.run(sql, [row.totalWins, row.userID], function(err) {
+									if (err) { return console.error(err.message); }
+								});
+							});
+						}
+						
+						let message = `**${gameName}** has been deleted from the database along with its recorded wins.`;
+						SendMessageToServer(message, channelID);
+					});
 				});
 			});
 		});
@@ -1241,8 +1257,8 @@ function ViewHeadAdminCommands(userID, channelID)
 	let message = 'Head Admin Commands:'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deletegame {nickname}** - deletes an existing game from the list and its recorded wins'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deleteuser {@userMention}** - delete the specified user from the database'
-				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deleteallusers** - DELETES ALL USERS FROM THE DATABASE.'
-				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deleteallgames** - DELETES ALL GAMES FROM THE DATABASE.'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deleteallusers** - DELETES ALL USERS AND WINS FROM THE DATABASE.'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deleteallgames** - DELETES ALL GAMES AND WINS FROM THE DATABASE.'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!resetallusers** - RESETS ALL USER WINS.'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!addadmin {@userMention}** - gives the specified user admin permissions'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deleteadmin {@userMention}** - removes the specified user\'s admin permissions'
@@ -1263,17 +1279,17 @@ function GiveUserWin(userID, channelID, userToEdit, game)
 	}
 	
 	if (userToEdit == null) {
-		let message = 'Missing the user to edit. Format: !givewin {@userMention} {nickname}';
+		let message = 'Missing the user to edit. Format: **!givewin {@userMention} {nickname}**';
 		return SendMessageToServer(message, channelID);
 	}
 	
 	if (game == null) {
-		let message = 'Missing game. Format: !givewin {@userMention} {nickname}';
+		let message = 'Missing game. Format: **!givewin {@userMention} {nickname}**';
 		return SendMessageToServer(message, channelID);
 	}
 
 	if (!CheckMentionFormat(userToEdit)) {
-		let message = 'Incorrect user format. Format: !givewin {@userMention} {nickname}';
+		let message = 'Incorrect user format. Format: **!givewin {@userMention} {nickname}**';
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -1284,7 +1300,7 @@ function GiveUserWin(userID, channelID, userToEdit, game)
 		return SendMessageToServer(message, channelID);
 	}	
 
-		AddWin(userToEditID, channelID, game); //Call the AddWin function with user's id
+	AddWin(userToEditID, channelID, game); //Call the AddWin function with user's id
 }
 
 //Admin only. Add Game to the Games table, add the new game to the User table as a column.
@@ -1296,25 +1312,25 @@ function AddGame(userID, channelID, gameName, nickName)
 	}
 	
 	if (gameName == null) {
-		let message = "Game name not specified. Command must be !addgame {gameName} {nickname}. Use \'_\' instead of spaces for the game name.";
+		let message = "Game name not specified. Format: **!addgame {gameName} {nickname}**. Use \'_\' instead of spaces for the game name.";
 		SendMessageToServer(message, channelID);
 		return;
 	}
 	
 	if (gameName.length > MAX_GAME_NAME_LENGTH) {
-		let message = `The game name cannot be larger than ${MAX_GAME_NAME_LENGTH} characters. Please shorten the game name.`;
+		let message = `The game name cannot be larger than **${MAX_GAME_NAME_LENGTH}** characters. Please shorten the game name.`;
 		SendMessageToServer(message, channelID);
 		return;
 	}
 	
 	if (nickName == null) {
-		let message = "Nickname not specified.  Command must be !addgame {gameName} {nickname}.";
+		let message = "Nickname not specified. Format **!addgame {gameName} {nickname}**.";
 		SendMessageToServer(message, channelID);
 		return;
 	}
 	
 	if (nickName.length > MAX_NICKNAME_LENGTH) {
-	let message = `The nickname cannot be larger than ${MAX_NICKNAME_LENGTH} characters. Please shorten the nickname.`;
+	let message = `The nickname cannot be larger than **${MAX_NICKNAME_LENGTH}** characters. Please shorten the nickname.`;
 		SendMessageToServer(message, channelID);
 		return;
 	}
@@ -1339,26 +1355,20 @@ function AddGame(userID, channelID, gameName, nickName)
 			}
 			sql = `SELECT userID from Users`;	//get all existing user IDs
 			db.all(sql, [], function(err, rows) {
-				if (err) {
-					return console.error(err.message);
-				}	
+				if (err) { return console.error(err.message); }	
 				rows.forEach(function(row) {
 					userIDs.push(row.userID);
 				});	
 				
 				sql = `SELECT gameID FROM Games WHERE gameNickname = ? COLLATE NOCASE`; //get the game id for the game that was just added
 				db.get(sql, [nickName], function(err, row) {
-					if (err) {
-						return console.error(err.message);
-					}
+					if (err) { return console.error(err.message); }
 					gameID = row.gameID;
 					
 					userIDs.forEach(function(playerID) {	//if there are users give them their own rows in the Win Table
 						sql = `INSERT INTO WinTable(userID, gameID) VALUES(?, ?)`;
 						db.run(sql, [playerID, gameID], function(err) {
-							if (err) {
-								return console.error(err.message);					
-							}								
+							if (err) { return console.error(err.message); }								
 						});	
 					});
 				let message = `**${formattedGameName}** with nickname **${nickName}** has been added to the game list and is ready to start tracking wins! :game_die:`;
@@ -1380,17 +1390,17 @@ function GiveUserLoss(userID, channelID, userToEdit, game)
 	}
 	
 	if (userToEdit == null) {
-		let message = 'Missing the user to edit. Format: !giveloss {@userMention} {nickname}';
+		let message = 'Missing the user to edit. Format: **!giveloss {@userMention} {nickname}**';
 		return SendMessageToServer(message, channelID);
 	}
 	
 	if (game == null) {
-		let message = 'Missing game. Format: !giveloss {@userMention} {nickname}';
+		let message = 'Missing game. Format: **!giveloss {@userMention} {nickname}**';
 		return SendMessageToServer(message, channelID);
 	}
 
 	if (!CheckMentionFormat(userToEdit)) {
-		let message = 'Incorrect user format. Format: !giveloss {@userMention} {nickname}';
+		let message = 'Incorrect user format. Format: **!giveloss {@userMention} {nickname}**';
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -1401,7 +1411,7 @@ function GiveUserLoss(userID, channelID, userToEdit, game)
 		return SendMessageToServer(message, channelID);
 	}	
 
-		AddLoss(userToEditID, channelID, game); //Call the AddLoss function with user's id
+	AddLoss(userToEditID, channelID, game); //Call the AddLoss function with user's id
 }
 
 //Admin only. Adds the specified user to the database.
@@ -1415,8 +1425,13 @@ function AddUser(userID, channelID, userToAdd)
 		return SendMessageToServer(message, channelID);
 	}
 	
+	if (userToAdd == null) {
+		let message = 'Missing user to add. Format: **!adduser {@userMention}**';
+		return SendMessageToServer(message, channelID);
+	}
+	
 	if (!CheckMentionFormat(userToAdd)) {
-		let message = 'Incorrect user format. Format: !adduser {@userMention}';
+		let message = 'Incorrect user format. Format: **!adduser {@userMention}**';
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -1442,22 +1457,22 @@ function UpdateGameName(userID, channelID, nickName, newGameName)
 	}
 	
 	if (nickName == null) {
-		let message = `Nickname for the game is missing. Format: !updategamename {nickname} {New_Game_Name}`;
+		let message = `Nickname for the game is missing. Format: **!updategamename {nickname} {New_Game_Name}**`;
 		return SendMessageToServer(message, channelID);
 	}
 	
 	if (newGameName == null) {
-		let message = `The new name for the game is missing. Format: !updategamename {nickname} {New_Game_Name}`;
+		let message = `The new name for the game is missing. Format: **!updategamename {nickname} {New_Game_Name}**`;
 		return SendMessageToServer(message, channelID);
 	}
 
 	if (nickName.length > MAX_NICKNAME_LENGTH) {
-		let message = `The length of the nickname cannot be larger than ${MAX_NICKNAME_LENGTH} characters. Format: !updategamename {nickname} {New_Game_Name}`;
+		let message = `The length of the nickname cannot be larger than **${MAX_NICKNAME_LENGTH}** characters. Format: **!updategamename {nickname} {New_Game_Name}**`;
 		return SendMessageToServer(message, channelID);
 	}
 	
 	if (newGameName.length > MAX_GAME_NAME_LENGTH) {
-		let message = `The length of the game name cannot be larger than ${MAX_GAME_NAME_LENGTH} characters. Format: !updategamename {nickname} {New_Game_Name}`;
+		let message = `The length of the game name cannot be larger than **${MAX_GAME_NAME_LENGTH}** characters. Format: **!updategamename {nickname} {New_Game_Name}**`;
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -1492,19 +1507,19 @@ function UpdateNickname(userID, channelID, oldNickName, newNickName)
 	
 	if (oldNickName == null)
 	{
-		let message = 'The current nickname is missing. Format: !updatenickname {oldNickName} {newNickName}';
+		let message = 'The current nickname is missing. Format: **!updatenickname {oldNickName} {newNickName}**';
 		return SendMessageToServer(message, channelID);
 	}
 	
 	if (newNickName == null)
 	{
-		let message = 'The new nickname is missing. Format: !updatenickname {oldNickName} {newNickName}';
+		let message = 'The new nickname is missing. Format: **!updatenickname {oldNickName} {newNickName}**';
 		return SendMessageToServer(message, channelID);
 	}
 	
 	if (newNickName.length > MAX_NICKNAME_LENGTH)
 	{
-		let message = 'The new nickname cannot be greater than ${MAX_NICKNAME_LENGTH}.';
+		let message = 'The new nickname cannot be greater than **${MAX_NICKNAME_LENGTH}** characters.';
 		return SendMessageToServer(message, channelID);
 	}
 	
@@ -1516,7 +1531,7 @@ function UpdateNickname(userID, channelID, oldNickName, newNickName)
 			sql = 'SELECT gameName FROM Games WHERE gameNickname = ? COLLATE NOCASE';
 			db.get(sql, [newNickName], function(err, row) {
 				if (row == null) {
-					let message = "Error: Could not validate nickname has changed.";
+					let message = "Error: Could not validate that nickname has changed.";
 					SendMessageToServer(message, channelID);
 				}
 				let message = `The nickname for **${row.gameName}** has changed from **${oldNickName}** to **${newNickName}**.`
