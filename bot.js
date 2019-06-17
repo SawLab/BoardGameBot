@@ -106,7 +106,7 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 				ViewSourceCode(channelID);
 				break;
 			case 'deleteallusers':
-				DeleteUsers(userID, channelID);
+				DeleteAllUsers(userID, channelID);
 				break;
 			case 'addgame':
 				AddGame(userID, channelID, cmd1, cmd2);
@@ -170,6 +170,15 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 				break;
 			case 'undorestore':
 				UndoDatabaseRestore(userID, channelID);
+				break;
+			case 'viewbackups':
+				ViewDatabaseBackupTimes(userID, channelID);
+				break;
+			case 'deleteallgames':
+				DeleteAllGames(userID, channelID);
+				break;
+			case 'resetallusers':
+				ResetAllUsers(userID, channelID);
 				break;
 			default:
 				IncorrectCommand(channelID);
@@ -310,7 +319,6 @@ function TotalWinsLeaderboard(channelID) {
 		
 		for(i = 0; i < rows.length; i++) {
 			if (rows[i].wins === firstScore ) {	//add all users that share the top score
-				console.log(rows[i]);
 				firstWinners.push(rows[i]);
 			}
 			else {
@@ -987,22 +995,76 @@ function DeleteGame(userID, channelID, gameNickname)
 	});
 }
 
-//Head Admin only. WIPES ENTIRE USER DATABASE
-function DeleteUsers(userID, channelID)
+//Head Admin only. WIPES ENTIRE USER TABLE
+function DeleteAllUsers(userID, channelID)
 {
 	if (userID != auth.headAdminID) {
 		let message = `<@!${userID}> is not the head admin! :rage:`
 		return SendMessageToServer(message, channelID);
 	}
 	
-	let sql = "DELETE FROM Users";
-	let message = "All user data deleted";
+	let sql = `DELETE FROM WinTable`; //Delete the win table first to avoid foreign key conflicts
 	db.run(sql, [], function(err) {
 		if (err) {
 			return console.error(err.message);
 		}
-		SendMessageToServer(message, channelID);
-	});
+		sql = "DELETE FROM Users";	//Now Delete all users
+		db.run(sql, [], function(err) {
+			if (err) {
+				return console.error(err.message);
+			}
+			let message = "All user data has been deleted";
+			SendMessageToServer(message, channelID);
+		});
+	});	
+}
+
+//Head Admin only. WIPES ENTIRE GAMES TABLE
+function DeleteAllGames(userID, channelID)
+{
+	if (userID != auth.headAdminID) {
+		let message = `<@!${userID}> is not the head admin! :rage:`
+		return SendMessageToServer(message, channelID);
+	}
+	
+	let sql = `DELETE FROM WinTable`; //Delete the win table first to avoid foreign key conflicts
+	db.run(sql, [], function(err) {
+		if (err) {
+			return console.error(err.message);
+		}
+		sql = `DELETE FROM Games`;	//Now Delete all games
+		db.run(sql, [], function(err) {
+			if (err) {
+				return console.error(err.message);
+			}
+			let message = "All game data has been deleted";
+			SendMessageToServer(message, channelID);
+		});
+	});	
+}
+
+//Head Admin only. Resets all user wins to 0
+function ResetAllUsers(userID, channelID)
+{
+	if (userID != auth.headAdminID) {
+		let message = `<@!${userID}> is not the head admin! :rage:`
+		return SendMessageToServer(message, channelID);
+	}
+	
+	let sql = `UPDATE WinTable SET wins = 0`; //Set all game record wins to 0
+	db.run(sql, [], function(err) {
+		if (err) {
+			return console.error(err.message);
+		}
+		sql = `UPDATE Users SET totalWins = 0, weeklyWins = 0`;	//Set total and weekly wins to 0
+		db.run(sql, [], function(err) {
+			if (err) {
+				return console.error(err.message);
+			}
+			let message = "All user wins have been reset.";
+			SendMessageToServer(message, channelID);
+		});
+	});	
 }
 
 //Head Admin Only. Restores Database using the specified backup
@@ -1058,8 +1120,13 @@ function RestoreDatabase(userID, channelID, num) {
 
 //Undos the most recent database restoration
 function UndoDatabaseRestore(userID, channelID) {
+	
+	if (userID != auth.headAdminID) {
+		let message = `<@!${userID}> is not the head admin! :rage: `
+		return SendMessageToServer(message, channelID);
+	}
+	
 	fs.stat('Old.bak', function(err, stat) {
-		console.log(1);
     if(err == null) {
         if (shell.exec("sqlite3 BoardGameBot.db .dump > Undo.bak").code !== 0) { //Copy current database so we dont risk losing it
 			let message = `${num} days database restoration failed. Could not copy database.`;
@@ -1067,7 +1134,6 @@ function UndoDatabaseRestore(userID, channelID) {
 			shell.exit(1);
 		}
 		else {
-			console.log(2);
 			db.close(); //close the database so we don't have any issues deleting it and reconnecting
 			if (shell.exec("del BoardGameBot.db").code !== 0) { //delete the current database
 				let message = `Undo database restoration failed. Could not delete database.`;
@@ -1075,20 +1141,17 @@ function UndoDatabaseRestore(userID, channelID) {
 				shell.exit(1);
 			}
 			else {
-				console.log(3)
 				if (shell.exec("sqlite3 BoardGameBot.db < Old.bak").code !== 0) { //Insert the old data into an empty database
 					let message = `Undo database restoration failed. Could not insert old database data into the new one.`;
 					SendMessageToServer(message, channelID);
 					shell.exit(1);
 				}
 				else {
-					console.log(4);
 					db = new sqlite3.Database('./BoardGameBot.db', (err) => { //reconnect to the restored database
 						if (err)
 						{
 							return console.error(err.message);
 						}
-						console.log(5);
 						if (shell.exec("del Old.bak").code !== 0) { //Delete the old database so we can make the previous database we just reverted from the old database
 							let message = `Undo database restoration failed. Could not delete old database.`;
 							SendMessageToServer(message, channelID);
@@ -1101,9 +1164,8 @@ function UndoDatabaseRestore(userID, channelID) {
 							shell.exit(1);
 						}
 							else {
-								console.log(6);
-								console.log('Undo database restore complete.');
-								let message = `Database restoration has been undone.`;
+								console.log(`Undo database restore complete. Reverted to database at ${stat.ctime}`);
+								let message = `Database restoration has been undone. Reverted to database at ${stat.ctime}`;
 								return SendMessageToServer(message, channelID);
 							}
 						}
@@ -1123,6 +1185,48 @@ function UndoDatabaseRestore(userID, channelID) {
 });
 }
 
+//Displays the DateTime of each database backup
+function ViewDatabaseBackupTimes(userID, channelID) {
+	
+	if (userID != auth.headAdminID) {
+		let message = `<@!${userID}> is not the head admin! :rage: `
+		return SendMessageToServer(message, channelID);
+	}
+	
+	let message = `__**Saved Database Backup Times:**__\n`;
+	
+	new Promise((resolve,reject) => { 
+		fs.stat('Old.bak', function(err, stat) {
+			if (err == null) {
+				message = `${message}Last Restoration: ${stat.mtime}\n`;
+			}
+		});
+		resolve();
+	})
+	.then(() => { 
+		fs.stat('1DayBackup.bak', function(err, stat) {
+			if (err == null) {	
+				message = `${message}1 Day Backup: ${stat.mtime}\n`;
+			}
+		});
+	})
+	.then(() => {
+		fs.stat('3DayBackup.bak', function(err, stat) {
+			if (err == null) {
+				message = `${message}3 Day Backup: ${stat.mtime}\n`;
+			}
+		});
+	})
+	.then(() => {
+		fs.stat('7DayBackup.bak', function(err, stat) {
+			if (err == null) {
+				message = `${message}7 Day Backup: ${stat.mtime}\n`;
+			}
+			SendMessageToServer(message, channelID);
+		});
+	})
+}
+
 /* ADMIN PRIVILEGES BELOW THIS POINT */
 
 //Admin only. Prints list of commands only the head admin can use
@@ -1137,10 +1241,14 @@ function ViewHeadAdminCommands(userID, channelID)
 	let message = 'Head Admin Commands:'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deletegame {nickname}** - deletes an existing game from the list and its recorded wins'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deleteuser {@userMention}** - delete the specified user from the database'
-				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deleteallusers** - DELETES ALL USERS FROM THE DATABASE. BIG NO NO'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deleteallusers** - DELETES ALL USERS FROM THE DATABASE.'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deleteallgames** - DELETES ALL GAMES FROM THE DATABASE.'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!resetallusers** - RESETS ALL USER WINS.'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!addadmin {@userMention}** - gives the specified user admin permissions'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!deleteadmin {@userMention}** - removes the specified user\'s admin permissions'
-				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!restoredatabase {num}** - Restores to the database back up from 1, 3 or 7 days ago';
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!restoredatabase {num}** - Restores to the database back up from 1, 3 or 7 days ago'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!undorestore** - Undoes the most recent database backup restoration'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t\t**!viewbackups** - Displays the date and time of each stored backup';
 	SendMessageToServer(message, channelID);
 }
 
