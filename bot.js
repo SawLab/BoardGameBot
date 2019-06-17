@@ -58,6 +58,13 @@ bot.on('guildMemberRemove', (member, evt) => {
 bot.on('message', function (user, userID, channelID, message, evt) {
 	// Our bot needs to know if it will execute a command
     // It will listen for messages that will start with `!`
+	if(message.toLowerCase().includes('good bot')) {
+		SendMessageToServer(':blush:', channelID);
+	}
+	if(message.toLowerCase().includes('bad bot')) {
+		SendMessageToServer(':cry:', channelID);
+	}
+	
     if (message.substring(0, 1) == '!') {
 		
 		if (channelID in bot.directMessages) {	//block direct message commands
@@ -796,9 +803,10 @@ function DuelUser(userID, channelID, userToDuel)
 			
 			if (user1WinRecords.length != user2WinRecords.length) {
 				let userIssue = (user1WinRecords.length > user2WinRecords.length) ? `<@!${userToDuelID}>` : `<@!${userID}>`;
-				let message = `${userIssue} needs to be added to my system before they can duel!`;//`ERROR: <@!${userID}> and <@!${userToDuelID}> have different number of game records. One or both of them need to be added to my system.`;
+				let message = `${userIssue} needs to be added to my system before they can duel!`;
 				return SendMessageToServer(message, channelID);
 			}
+			
 			var i;
 			//start battle
 			for (i = 0; i < user1WinRecords.length; i++) {
@@ -816,8 +824,32 @@ function DuelUser(userID, channelID, userToDuel)
 				}
 				numGames = numGames + 1
 			}
-
+				
+			sql = `SELECT a.totalWins totalWins1, a.weeklyWins weeklyWins1, b.totalWins totalWins2, b.weeklyWins weeklyWins2 FROM Users a, Users b WHERE a.userID = ? AND b.userID = ?`;
+			db.get(sql, [userID, userToDuelID], function(err, row) {
+				if (err) { return console.error(err.message); }
+				
 				var message = `Through a total of **${numGames}** battles... :crossed_swords: \n <@!${userID}> won **${user1VictoryPoints}** battles, <@!${userToDuelID}> won **${user2VictoryPoints}** battles, and tying in **${numOfTies}** battles...\n`
+				
+				if (row.totalWins1 > row.totalWins2) {
+					user1VictoryPoints = user1VictoryPoints + 1;
+					message = `${message}<@!${userID}> has the total wins advantage!\n`;
+				}
+				else if (row.totalWins1 < row.totalWins2) {
+					user2VictoryPoints = user2VictoryPoints + 1;
+					message = `${message}<@!${userToDuelID}> has the total wins advantage!\n`;
+				}
+				
+				if (row.weeklyWins1 > row.weeklyWins2) {
+					user1VictoryPoints = user1VictoryPoints + 1;
+					message = `${message}<@!${userID}> has the weekly wins advantage!\n`;
+				}
+				else if (row.weeklyWins1 < row.weeklyWins2) {
+					user2VictoryPoints = user2VictoryPoints + 1;
+					message = `${message}<@!${userToDuelID}> has the weekly wins advantage!\n`;
+				}
+				
+				
 				if (user1VictoryPoints > user2VictoryPoints) {
 					message = message + `<@!${userID}> wins!`;
 				}
@@ -828,7 +860,8 @@ function DuelUser(userID, channelID, userToDuel)
 					message = message + `<@!${userID}> and <@!${userToDuelID}> have tied!`
 				}
 		
-				SendMessageToServer(message, channelID);		
+				SendMessageToServer(message, channelID);	
+			});		
 		});	
 	});
 }
