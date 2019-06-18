@@ -192,7 +192,7 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 			case 'about':
 				About(channelID);
 				break;
-			case 'bug'
+			case 'bug':
 				BugReport(channelID);
 				break;
 			default:
