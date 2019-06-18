@@ -1265,7 +1265,7 @@ function UndoDatabaseRestore(userID, channelID) {
 		
     } else if(err.code === 'ENOENT') {
         // file does not exist
-        console.log('Old.db does not exist!');
+        console.log('Old.bak does not exist!');
 		let message = 'There has been no restoration to undo!';
 		return SendMessageToServer(message, channelID);
     } else {
