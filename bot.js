@@ -59,11 +59,11 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 	// Our bot needs to know if it will execute a command
     // It will listen for messages that will start with `!`
 	if(message.toLowerCase().includes('good bot')) {
-		if (message.toLowerCase().includes('not')) { SendMessageToServer(':cry:', channelID); }
+		if (message.toLowerCase().includes('not') || message.toLowerCase().includes('isnt') || message.toLowerCase().includes('isn\'t')) { SendMessageToServer(':cry:', channelID); }
 		else { SendMessageToServer(':blush:', channelID); }
 	}
 	if(message.toLowerCase().includes('bad bot')) {
-		if (message.toLowerCase().includes('not')) { SendMessageToServer(':blush:', channelID); }
+		if (message.toLowerCase().includes('not') || message.toLowerCase().includes('isnt') || message.toLowerCase().includes('isn\'t')) { SendMessageToServer(':blush:', channelID); }
 		else { SendMessageToServer(':cry:', channelID); }
 	}
 	
@@ -188,6 +188,12 @@ bot.on('message', function (user, userID, channelID, message, evt) {
 				break;
 			case 'resetallusers':
 				ResetAllUsers(userID, channelID);
+				break;
+			case 'about':
+				About(channelID);
+				break;
+			case 'bug'
+				BugReport(channelID);
 				break;
 			default:
 				IncorrectCommand(channelID);
@@ -636,6 +642,8 @@ function Help(channelID)
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!source** - view my source code'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!admin** - view admin commands'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!viewadmins** - view a list of all admins'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!about** - view why I was created!'
+				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!bug** - view how to report a bug or issue'
 				+ '\n\t\t\t\t\t\t\t\t\t\t\t**!help** - prints the help screen';
 	SendMessageToServer(message, channelID);
 }
@@ -882,6 +890,20 @@ function DuelUser(userID, channelID, userToDuel)
 			});		
 		});	
 	});
+}
+
+//Displays information about this bot
+function About(channelID)
+{
+	let message = 'Aharance originally created me for his friends to use in their virtual board game group.\nIf I\'m currently being used somewhere else then I\'m doing even better than I hoped for! ';
+	SendMessageToServer(message, channelID);
+}
+
+//Displays information on how to report a bug
+function BugReport(channelID)
+{
+	let message = 'Please report any bugs or issues to aharance@gmail.com or directly using GitHub: \nhttps://github.com/SawLab/BoardGameBot/issues.';
+	SendMessageToServer(message, channelID);
 }
 
 /* HEAD ADMIN PRIVILEGES BELOW THIS POINT */
